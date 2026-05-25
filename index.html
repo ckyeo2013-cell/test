@@ -1,82 +1,172 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Multiplayer 2D Shooter</title>
+    <title>Chaos Shooter</title>
     <style>
-        * { margin:0; padding:0; box-sizing:border-box; font-family:Arial; overflow:hidden; }
+        * { margin:0; padding:0; box-sizing:border-box; font-family:Arial; overflow:hidden; transition: all 0.3s ease; }
         body { background:#222; display:flex; align-items:center; justify-content:center; height:100vh; }
-        #ui { position:absolute; top:10px; left:10px; color:white; font-size:20px; z-index:10; }
+
+        /* UI — NOT BLOCKED */
+        #ui { position:absolute; top:10px; left:120px; color:white; font-size:18px; z-index:10; display:flex; gap:15px; }
+        #roomCode { position:absolute; top:10px; right:10px; color:#0f0; font-size:20px; font-weight:bold; z-index:10; }
         #crosshair { position:absolute; width:20px; height:20px; border:2px solid white; border-radius:50%; pointer-events:none; z-index:11; }
-        #startScreen, #winScreen, #roomScreen { position:absolute; inset:0; background:rgba(0,0,0,0.9); color:white; display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:20; }
-        #startScreen h1, #winScreen h1, #roomScreen h1 { font-size:50px; margin-bottom:20px; color:#00ccff; }
-        #startScreen p, #roomScreen p { font-size:20px; margin-bottom:10px; }
-        #startScreen button, #roomScreen button, #winScreen button { padding:12px 30px; font-size:22px; background:#00ccff; color:black; border:none; border-radius:8px; cursor:pointer; margin:5px; }
-        #roomScreen input { padding:10px; font-size:22px; text-align:center; width:120px; margin:10px; border-radius:6px; border:none; }
-        #winScreen { display:none; }
-        #roomScreen { display:none; }
+        #topLeft { position:absolute; top:10px; left:10px; z-index:30; display:flex; flex-direction:column; gap:5px; }
+
+        /* SCREENS */
+        .screen {
+            position:absolute; inset:0; background:rgba(0,0,0,0.9);
+            color:white; display:flex; flex-direction:column;
+            align-items:center; justify-content:center; z-index:20;
+            opacity:0; pointer-events:none;
+        }
+        .screen.active { opacity:1; pointer-events:all; }
+
+        h1 { font-size:50px; margin-bottom:20px; color:#ffcc00; text-shadow: 0 0 10px #ffcc0077; }
+        p { font-size:20px; margin-bottom:10px; }
+        button {
+            padding:12px 30px; font-size:20px; background:#ffcc00;
+            color:black; border:none; border-radius:8px;
+            cursor:pointer; margin:8px;
+            box-shadow: 0 4px 0 #aa8800;
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        button.small { padding:4px 12px; font-size:14px; width:90px; }
+        button.danger { background:#ff4444; box-shadow: 0 4px 0 #aa2222; }
+        button:active { transform:translateY(4px); box-shadow:none; }
+        input {
+            padding:10px; font-size:20px; text-align:center;
+            width:200px; margin:10px; border-radius:6px; border:none;
+        }
+
+        /* CHAOS CARDS */
+        #cardScreen p { margin-bottom:20px; font-size:24px; color:#ffcc00; }
+        .cards-container { display:flex; gap:20px; }
+        .chaos-card {
+            background: linear-gradient(135deg, #440088, #7700bb);
+            width:180px; height:240px;
+            border-radius:12px; border:2px solid #ffcc00;
+            padding:15px; display:flex; flex-direction:column;
+            align-items:center; justify-content:center;
+            cursor:pointer;
+            box-shadow: 0 0 15px #7700bb77;
+        }
+        .chaos-card:hover { transform: scale(1.05); box-shadow: 0 0 25px #ffcc00aa; }
+        .card-title { font-size:20px; font-weight:bold; margin-bottom:10px; color:#ffcc00; text-align:center; }
+        .card-desc { font-size:14px; line-height:1.4; text-align:center; }
+
         canvas { background:linear-gradient(#87CEEB, #f0f9ff); border:3px solid #444; }
     </style>
 </head>
 <body>
 
-<div id="startScreen">
-    <h1>MULTIPLAYER SHOOTER</h1>
-    <p>Play with friends — create or join a room</p>
-    <button onclick="showRoomScreen()">PLAY NOW</button>
+<!-- TOP LEFT BUTTONS -->
+<div id="topLeft">
+    <button class="small danger" onclick="leaveGame()" style="display:none;" id="leaveBtn">LEAVE</button>
+    <button class="small" onclick="goBack()" style="display:none;" id="backBtn">BACK</button>
 </div>
 
-<div id="roomScreen">
-    <h1>ROOM</h1>
-    <button onclick="createRoom()">CREATE ROOM</button>
-    <p id="roomCodeDisplay"></p>
+<!-- LOGIN SCREEN -->
+<div id="loginScreen" class="screen active">
+    <h1>CHAOS SHOOTER</h1>
+    <input type="text" id="loginUser" placeholder="Username">
+    <input type="password" id="loginPass" placeholder="Password">
+    <button onclick="login()">LOGIN</button>
+    <button onclick="showScreen('registerScreen')">REGISTER</button>
+</div>
+
+<!-- REGISTER SCREEN -->
+<div id="registerScreen" class="screen">
+    <h1>CREATE ACCOUNT</h1>
+    <input type="text" id="regUser" placeholder="Username">
+    <input type="password" id="regPass" placeholder="Password">
+    <button onclick="register()">REGISTER</button>
+    <button class="small" onclick="goBack()">BACK</button>
+</div>
+
+<!-- HOMEPAGE -->
+<div id="homeScreen" class="screen">
+    <h1>WELCOME, <span id="usernameDisplay"></span></h1>
+    <p>Choose Game Mode</p>
+    <button onclick="startSolo()">SOLO MODE</button>
+    <button onclick="showScreen('roomScreen')">MULTIPLAYER MODE</button>
+    <button class="small danger" onclick="logout()">LOGOUT</button>
+</div>
+
+<!-- ROOM SCREEN -->
+<div id="roomScreen" class="screen">
+    <h1>MULTIPLAYER ROOM</h1>
+    <button onclick="createRoom()">CREATE NEW ROOM</button>
     <p>OR ENTER CODE TO JOIN</p>
     <input type="text" id="joinCodeInput" maxlength="4" placeholder="CODE">
     <button onclick="joinRoom()">JOIN ROOM</button>
+    <button class="small" onclick="goBack()">BACK</button>
 </div>
 
-<div id="winScreen">
-    <h1>🎉 YOU WON! 🎉</h1>
-    <p>All enemies eliminated!</p>
-    <button onclick="location.reload()">Play Again</button>
+<!-- CHAOS CARD SCREEN -->
+<div id="cardScreen" class="screen">
+    <h1>ROUND OVER!</h1>
+    <p>Choose a Chaos Card for Next Round</p>
+    <div class="cards-container" id="cardsContainer"></div>
 </div>
 
+<!-- GAME UI -->
 <div id="ui">
     <p>Health: <span id="health">100</span></p>
-    <p>Enemies Left: <span id="enemies">2</span></p>
+    <p>Enemies Left: <span id="enemies">0</span></p>
     <p>Players Online: <span id="players">1</span></p>
+    <p>Round: <span id="round">1</span></p>
 </div>
+<div id="roomCode">ROOM: <span id="currentCode"></span></div>
 <div id="crosshair"></div>
 <canvas id="gameCanvas" width="1000" height="600"></canvas>
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
 <script>
-let canvas = document.getElementById("gameCanvas");
-let ctx = canvas.getContext("2d");
-let crosshair = document.getElementById("crosshair");
+// === BASIC SETUP ===
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
 
 let keys = {};
 let mouse = {x:0, y:0, down:false};
 let running = false;
+let currentRound = 1;
+let gameMode = "";
+let currentUser = null;
+let previousScreen = "loginScreen";
 
-// --- MULTIPLAYER SETUP ---
-let peer;
-let myId;
-let roomCode;
-let hostId;
-let connections = {};
-let isHost = false;
-
-let player = {
-    x: 150, y: 300, w:30, h:50, speed:5, vx:0, vy:0,
-    jumpForce:-14, gravity:0.6, onGround:false, health:100, angle:0
-};
+// === MULTIPLAYER ===
+let peer, myId, roomCode, connections = {}, isHost = false;
 let players = {};
 let bullets = [];
-let enemies = [
-    {id:"e1", x:700, y:300, w:30, h:50, health:50, speed:2, dir:-1},
-    {id:"e2", x:400, y:150, w:30, h:50, health:50, speed:2, dir:1}
-];
-let platforms = [
+let enemyBullets = [];
+let enemies = [];
+
+// === PLAYER ===
+let player = {
+    x:150, y:500, w:30, h:50,
+    vx:0, vy:0, speed:5, jump:-14, gravity:0.6, onGround:false, health:100,
+    angle:0, damage:25, fireRate:800, lastShot:0, username:"",
+    bulletSize:7, bulletSpeed:12, rapidFire:false, megaDamage:false, speedBoost:false
+};
+
+// === ENEMIES — HARDCODED, GUARANTEED TO SPAWN ===
+function createEnemies() {
+    enemies = [
+        {
+            id:"e1", x:700, y:500, w:45, h:55, health:200, maxHealth:200, speed:1.5,
+            dir:-1, viewRange:500, attackRange:300, lastShot:0, fireRate:1200,
+            state:"patrol", target:null, damage:15, color:"#FF0000"
+        },
+        {
+            id:"e2", x:400, y:400, w:45, h:55, health:160, maxHealth:160, speed:2,
+            dir:1, viewRange:450, attackRange:280, lastShot:0, fireRate:1000,
+            state:"patrol", target:null, damage:18, color:"#FF2200"
+        }
+    ];
+}
+
+// === PLATFORMS ===
+const platforms = [
     {x:0, y:550, w:1000, h:50},
     {x:200, y:450, w:150, h:20},
     {x:450, y:380, w:150, h:20},
@@ -85,214 +175,392 @@ let platforms = [
     {x:600, y:180, w:150, h:20}
 ];
 
-// --- SCREEN SWITCH ---
-function showRoomScreen() {
-    document.getElementById("startScreen").style.display = "none";
-    document.getElementById("roomScreen").style.display = "flex";
+// === CHAOS CARDS ===
+const chaosCards = [
+    { title: "RAPID FIRE", desc: "Shoot 2x faster", effect: () => { player.rapidFire = true; player.fireRate = 400; } },
+    { title: "MEGA DAMAGE", desc: "3x damage", effect: () => { player.megaDamage = true; player.damage *= 3; } },
+    { title: "SPEED DEMON", desc: "1.5x faster", effect: () => { player.speedBoost = true; player.speed *= 1.5; } },
+    { title: "BIG BULLETS", desc: "Huge bullets + extra damage", effect: () => { player.bulletSize = 14; player.damage += 15; } },
+    { title: "SUPER JUMP", desc: "Jump 2x higher", effect: () => { player.jump *= 1.8; } },
+    { title: "FAST BULLETS", desc: "Bullets travel faster", effect: () => { player.bulletSpeed = 18; } },
+    { title: "INVINCIBILITY", desc: "Take no damage", effect: () => { player.health = 9999; } },
+    { title: "ENEMY WEAKNESS", desc: "Enemies have 50% health", effect: () => { enemies.forEach(e => { e.maxHealth *= 0.5; e.health = e.maxHealth; }); } }
+];
+
+// === ACCOUNT SYSTEM — PERMANENT SAVE ===
+function register() {
+    const user = document.getElementById("regUser").value.trim();
+    const pass = document.getElementById("regPass").value.trim();
+    if(!user || !pass) return alert("Fill all fields");
+    if(localStorage.getItem("acc_"+user)) return alert("Username exists");
+    localStorage.setItem("acc_"+user, pass);
+    alert("Registered! Login now.");
+    showScreen("loginScreen");
 }
 
-// --- CREATE ROOM ---
+function login() {
+    const user = document.getElementById("loginUser").value.trim();
+    const pass = document.getElementById("loginPass").value.trim();
+    if(!user || !pass) return alert("Fill all fields");
+    if(localStorage.getItem("acc_"+user) !== pass) return alert("Wrong username/password");
+    localStorage.setItem("currentUser", user);
+    currentUser = user;
+    player.username = user;
+    document.getElementById("usernameDisplay").textContent = user;
+    showScreen("homeScreen");
+}
+
+function logout() {
+    localStorage.removeItem("currentUser");
+    currentUser = null;
+    showScreen("loginScreen");
+}
+
+// === AUTO-LOGIN ===
+window.onload = function() {
+    const savedUser = localStorage.getItem("currentUser");
+    if(savedUser) {
+        currentUser = savedUser;
+        player.username = savedUser;
+        document.getElementById("usernameDisplay").textContent = savedUser;
+        showScreen("homeScreen");
+    }
+};
+
+// === NAVIGATION ===
+function showScreen(id) {
+    previousScreen = document.querySelector('.screen.active')?.id || "loginScreen";
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    if(id) document.getElementById(id).classList.add('active');
+    document.getElementById("backBtn").style.display = (id && id !== "homeScreen" && id !== "loginScreen") ? "block" : "none";
+    document.getElementById("leaveBtn").style.display = (!id) ? "block" : "none";
+}
+
+function goBack() { if(previousScreen) showScreen(previousScreen); }
+
+function leaveGame() {
+    running = false;
+    if(peer) peer.destroy();
+    peer = null; connections = {}; isHost = false;
+    showScreen("homeScreen");
+}
+
+// === MODE START — ENEMIES CREATED HERE FOR SURE ===
+function startSolo() {
+    gameMode = "solo";
+    showScreen('');
+    resetMap();
+    createEnemies(); // <-- EXPLICITLY MAKE ENEMIES
+    running = true;
+}
+
+// === ROOM SYSTEM ===
 function createRoom() {
-    roomCode = Math.floor(1000 + Math.random() * 9000).toString();
+    gameMode = "multiplayer";
+    roomCode = Math.floor(1000 + Math.random()*9000).toString();
     isHost = true;
-    peer = new Peer(roomCode); // Host uses room code as ID
+    peer = new Peer(roomCode);
     peer.on('open', id => {
         myId = id;
-        hostId = id;
-        document.getElementById("roomCodeDisplay").textContent = `Your code: ${roomCode}`;
-        startListening();
+        document.getElementById("currentCode").textContent = roomCode;
+        showScreen('');
+        resetMap();
+        running = true;
     });
-}
-
-// --- JOIN ROOM ---
-function joinRoom() {
-    roomCode = document.getElementById("joinCodeInput").value.trim();
-    if (!roomCode) return;
-    isHost = false;
-    peer = new Peer();
-    peer.on('open', id => {
-        myId = id;
-        connectToHost(roomCode);
-        hostId = roomCode;
-    });
-    startListening();
-}
-
-function startListening() {
     peer.on('connection', conn => {
         connections[conn.peer] = conn;
         conn.on('data', data => handleData(data, conn.peer));
     });
-    document.getElementById("roomScreen").style.display = "none";
-    startGame();
 }
 
-function connectToHost(hostCode) {
-    let conn = peer.connect(hostCode);
-    conn.on('open', () => { connections[hostCode] = conn; });
-    conn.on('data', data => handleData(data, hostCode));
+function joinRoom() {
+    gameMode = "multiplayer";
+    roomCode = document.getElementById("joinCodeInput").value.trim();
+    if(!roomCode) return;
+    isHost = false;
+    peer = new Peer();
+    peer.on('open', id => {
+        myId = id;
+        const conn = peer.connect(roomCode);
+        conn.on('open', () => {
+            connections[roomCode] = conn;
+            document.getElementById("currentCode").textContent = roomCode;
+            showScreen('');
+            resetMap();
+            running = true;
+        });
+        conn.on('data', data => handleData(data, roomCode));
+    });
 }
 
 function handleData(data, senderId) {
-    if (data.type === 'state') players[senderId] = data.player;
-    if (data.type === 'bullet') bullets.push(data.bullet);
-    if (data.type === 'enemies') enemies = data.enemies;
+    if(data.type === 'state') players[senderId] = data.p;
+    if(data.type === 'bullet') bullets.push(data.b);
+    if(data.type === 'roundEnd') showChaosCards();
 }
 
-function broadcast(data) {
-    Object.values(connections).forEach(conn => conn.send(data));
-}
+function broadcast(data) { Object.values(connections).forEach(c => c.send(data)); }
 
-// --- INPUT ---
-document.addEventListener("keydown",e=>{keys[e.code]=true;});
-document.addEventListener("keyup",e=>{keys[e.code]=false;});
+// === INPUT ===
+document.addEventListener("keydown",e=>keys[e.code]=true);
+document.addEventListener("keyup",e=>keys[e.code]=false);
 
 document.addEventListener("mousemove",e=>{
-    let rect = canvas.getBoundingClientRect();
-    mouse.x = e.clientX - rect.left;
-    mouse.y = e.clientY - rect.top;
-    crosshair.style.left = e.clientX + "px";
-    crosshair.style.top = e.clientY + "px";
-    let dx = mouse.x - (player.x + player.w/2);
-    let dy = mouse.y - (player.y + player.h/2);
-    player.angle = Math.atan2(dy, dx);
+    const r = canvas.getBoundingClientRect();
+    mouse.x = e.clientX - r.left;
+    mouse.y = e.clientY - r.top;
+    document.getElementById("crosshair").style.left = e.clientX+"px";
+    document.getElementById("crosshair").style.top = e.clientY+"px";
+    const dx = mouse.x - (player.x+player.w/2);
+    const dy = mouse.y - (player.y+player.h/2);
+    player.angle = Math.atan2(dy,dx);
 });
+
 document.addEventListener("mousedown",e=>{if(e.button===0) mouse.down=true;});
 document.addEventListener("mouseup",e=>{if(e.button===0) mouse.down=false;});
 
-// --- COLLISION ---
-function checkCollision(a,b) {
-    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+// === COLLISION ===
+function collide(a,b) {
+    return (
+        a.x < b.x + b.w &&
+        a.x + a.w > b.x &&
+        a.y < b.y + b.h &&
+        a.y + a.h > b.y
+    );
 }
 
-// --- UPDATE ---
+function bulletHitsPlatform(b) { return platforms.some(p => collide(b, p)); }
+
+// === CHAOS CARDS ===
+function showChaosCards() {
+    running = false;
+    player.rapidFire = false; player.megaDamage = false; player.speedBoost = false;
+    player.speed = 5; player.jump = -14; player.fireRate = 800;
+    player.bulletSize = 7; player.bulletSpeed = 12; player.damage = 25;
+    player.health = 100;
+
+    let available = [...chaosCards];
+    let selected = [];
+    for(let i=0; i<3; i++) {
+        const idx = Math.floor(Math.random() * available.length);
+        selected.push(available.splice(idx,1)[0]);
+    }
+    const container = document.getElementById('cardsContainer');
+    container.innerHTML = '';
+    selected.forEach(card => {
+        const el = document.createElement('div');
+        el.className = 'chaos-card';
+        el.innerHTML = `<div class="card-title">${card.title}</div><div class="card-desc">${card.desc}</div>`;
+        el.onclick = () => { card.effect(); startRound(); };
+        container.appendChild(el);
+    });
+    showScreen('cardScreen');
+}
+
+function startRound() {
+    showScreen('');
+    resetMap();
+    if(gameMode === "solo") createEnemies(); // <-- RE-SPAWN ENEMIES EVERY ROUND
+    currentRound++;
+    document.getElementById('round').textContent = currentRound;
+    running = true;
+}
+
+function resetMap() {
+    bullets = [];
+    enemyBullets = [];
+    player.x=150; player.y=500; player.vx=0; player.vy=0;
+    enemies = [];
+}
+
+// === ENEMY AI ===
+function updateEnemies() {
+    enemies.forEach(e => {
+        let closestPlayer = null;
+        let minDist = Infinity;
+        for(let pid in players) {
+            const p = players[pid];
+            const dist = Math.hypot(p.x - e.x, p.y - e.y);
+            if(dist < minDist) { minDist = dist; closestPlayer = p; }
+        }
+        if(closestPlayer && minDist < e.viewRange) {
+            e.state = minDist < e.attackRange ? "attack" : "chase";
+            e.target = closestPlayer;
+        } else {
+            e.state = "patrol";
+            e.target = null;
+        }
+        if(e.state === "patrol") {
+            e.x += e.speed * e.dir;
+            if(e.x < 100 || e.x + e.w > canvas.width - 100) e.dir *= -1;
+        }
+        if(e.state === "chase" && e.target) {
+            e.dir = e.target.x > e.x ? 1 : -1;
+            e.x += e.speed * e.dir;
+            if(e.target.y < e.y - 30 && Math.random() < 0.02) e.vy = -10;
+        }
+        if(e.state === "attack" && e.target) {
+            e.dir = e.target.x > e.x ? 1 : -1;
+            if(Math.abs(e.target.x - e.x) > 80) e.x += e.speed * e.dir;
+            if(Date.now() - e.lastShot > e.fireRate) {
+                e.lastShot = Date.now();
+                const angle = Math.atan2(e.target.y - (e.y+e.h/2), e.target.x - (e.x+e.w/2));
+                enemyBullets.push({
+                    x:e.x+e.w/2, y:e.y+e.h/2, w:8, h:8,
+                    vx:Math.cos(angle)*9, vy:Math.sin(angle)*9,
+                    life:120, dmg:e.damage
+                });
+            }
+        }
+        e.vy += 0.6;
+        e.y += e.vy;
+        e.onGround = false;
+        platforms.forEach(p=>{
+            if(collide(e,p)) {
+                if(e.vy>0 && e.y+e.h - e.vy <= p.y) { e.y = p.y - e.h; e.vy=0; e.onGround=true; }
+            }
+        });
+    });
+}
+
+// === UPDATE ===
 function update() {
     if(!running) return;
 
-    // Player movement
     if(keys["KeyA"]) player.vx = -player.speed;
     else if(keys["KeyD"]) player.vx = player.speed;
-    else player.vx *= 0.88;
+    else player.vx *=0.88;
 
-    if(keys["KeyW"] && player.onGround) {
-        player.vy = player.jumpForce;
-        player.onGround = false;
-    }
+    if(keys["KeyW"] && player.onGround) { player.vy=player.jump; player.onGround=false; }
 
     player.vy += player.gravity;
     player.x += player.vx;
     player.y += player.vy;
 
-    // Platform collision
     player.onGround = false;
     platforms.forEach(p=>{
-        if(checkCollision(player, p)) {
-            if(player.vy > 0 && player.y + player.h - player.vy <= p.y) {
-                player.y = p.y - player.h;
-                player.vy = 0;
-                player.onGround = true;
-            } else if(player.vy < 0 && player.y - player.vy >= p.y + p.h) {
-                player.y = p.y + p.h;
-                player.vy *= -0.3;
+        if(collide(player,p)) {
+            if(player.vy>0 && player.y+player.h - player.vy <= p.y) {
+                player.y = p.y - player.h; player.vy=0; player.onGround=true;
+            } else if(player.vy<0 && player.y - player.vy >= p.y+p.h) {
+                player.y = p.y+p.h; player.vy *=-0.3;
             } else {
-                if(player.vx > 0) player.x = p.x - player.w;
-                if(player.vx < 0) player.x = p.x + p.w;
+                if(player.vx>0) player.x = p.x - player.w;
+                if(player.vx<0) player.x = p.x + p.w;
             }
         }
     });
 
-    if(player.x < 0) player.x = 0;
-    if(player.x + player.w > canvas.width) player.x = canvas.width - player.w;
+    if(player.x<0) player.x=0;
+    if(player.x+player.w>canvas.width) player.x=canvas.width-player.w;
 
-    // Shoot
-    if(mouse.down) {
-        mouse.down = false;
-        let b = {
-            x: player.x + player.w/2, y: player.y + player.h/2,
-            vx: Math.cos(player.angle)*12, vy: Math.sin(player.angle)*12, life:120
+    if(mouse.down && Date.now() - player.lastShot > player.fireRate) {
+        player.lastShot = Date.now();
+        const b = {
+            x:player.x+player.w/2, y:player.y+player.h/2, w:player.bulletSize, h:player.bulletSize,
+            vx:Math.cos(player.angle)*player.bulletSpeed, vy:Math.sin(player.angle)*player.bulletSpeed,
+            life:120, dmg:player.damage
         };
         bullets.push(b);
-        broadcast({type:'bullet', bullet:b});
+        if(gameMode === "multiplayer") broadcast({type:'bullet', b:b});
     }
 
-    // Update bullets & enemies (HOST ONLY controls enemies)
-    if (isHost) {
-        bullets.forEach((b,i)=>{
+    if(gameMode === "solo") {
+        updateEnemies();
+        for (let i = bullets.length - 1; i >= 0; i--) {
+            const b = bullets[i];
             b.x += b.vx; b.y += b.vy; b.life--;
-            if(b.life <=0 || b.x<0||b.x>canvas.width||b.y<0||b.y>canvas.height) return bullets.splice(i,1);
-            enemies.forEach((e,ei)=>{
-            if(b.x > e.x && b.x < e.x+e.w && b.y > e.y && b.y < e.y+e.h) {
-                e.health -= 25;
+            if(b.life <=0 || b.x<0||b.x>canvas.width||b.y<0||b.y>canvas.height || bulletHitsPlatform(b)) {
                 bullets.splice(i,1);
-                if(e.health <=0) enemies.splice(ei,1);
+                continue;
             }
-        });
-    });
-
-        enemies.forEach(e=>{
-            e.x += e.speed * e.dir;
-            if(e.x < 100 || e.x + e.w > canvas.width - 100) e.dir *= -1;
-        });
-
-        broadcast({type:'enemies', enemies:enemies});
-    } else {
-        bullets.forEach((b,i)=>{ b.x += b.vx; b.y += b.vy; b.life--; if(b.life<=0) bullets.splice(i,1); });
+            for (let j = enemies.length - 1; j >= 0; j--) {
+                if(collide(b, enemies[j])) {
+                    enemies[j].health -= b.dmg;
+                    bullets.splice(i,1);
+                    if(enemies[j].health <=0) enemies.splice(j,1);
+                    break;
+                }
+            }
+        }
+        for (let i = enemyBullets.length - 1; i >= 0; i--) {
+            const b = enemyBullets[i];
+            b.x += b.vx; b.y += b.vy; b.life--;
+            if(b.life <=0 || b.x<0||b.x>canvas.width||b.y<0||b.y>canvas.height || bulletHitsPlatform(b)) {
+                enemyBullets.splice(i,1);
+                continue;
+            }
+            if(collide(b, player)) { player.health -= b.dmg; enemyBullets.splice(i,1); }
+        }
+        if(enemies.length === 0) showChaosCards();
     }
 
-    // Win condition
-    if(enemies.length === 0) {
-        running = false;
-        document.getElementById("winScreen").style.display = "flex";
+    if(gameMode === "multiplayer") {
+        bullets = bullets.filter(b => {
+            b.x += b.vx; b.y += b.vy; b.life--;
+            return b.life > 0 && !bulletHitsPlatform(b);
+        });
     }
 
-    // Send my state to everyone
-    broadcast({type:'state', player:player});
+    if(gameMode === "multiplayer") broadcast({type:'state', p:player});
     players[myId] = player;
 
-    // Update UI
-    document.getElementById("health").textContent = player.health;
+    document.getElementById("health").textContent = Math.max(0, player.health);
     document.getElementById("enemies").textContent = enemies.length;
     document.getElementById("players").textContent = Object.keys(players).length;
 }
 
-// --- DRAW ---
+// === DRAW — ENEMIES FIRST, BIG & BRIGHT ===
 function draw() {
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle = "#553311";
-    platforms.forEach(p=>ctx.fillRect(p.x,p.y,p.w,p.h));
+    ctx.fillStyle="#553311"; platforms.forEach(p=>ctx.fillRect(p.x,p.y,p.w,p.h));
 
-    // Draw all players
+    // DRAW ENEMIES FIRST — GUARANTEED VISIBLE
+    enemies.forEach(e=>{
+        ctx.fillStyle = e.color;
+        ctx.fillRect(e.x,e.y,e.w,e.h);
+        ctx.fillStyle="#222";
+        ctx.fillRect(e.x, e.y-12, e.w, 6);
+        ctx.fillStyle="#0f0";
+        ctx.fillRect(e.x, e.y-12, (e.health / e.maxHealth) * e.w, 6);
+        ctx.fillStyle = e.state==="patrol"?"#ffffff":e.state==="chase"?"#ffff00":"#ff0000";
+        ctx.fillRect(e.x+10,e.y-18,25,6);
+    });
+
+    // DRAW PLAYERS
     for(let pid in players) {
         let p = players[pid];
         ctx.save();
-        ctx.translate(p.x + p.w/2, p.y + p.h/2);
-        ctx.fillStyle = pid === myId ? "#0099ff" : "#ff6600";
-        ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+        ctx.translate(p.x+p.w/2, p.y+p.h/2);
+        ctx.fillStyle = pid===myId ? "#0099ff" : "#ff6600";
+        ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);
+        ctx.fillStyle = "white";
+        ctx.font = "12px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(p.username, 0, -p.h - 5);
         ctx.rotate(p.angle);
-        ctx.fillStyle = "#222";
-        ctx.fillRect(0, -4, 30, 8);
+        ctx.fillStyle="#222"; ctx.fillRect(0,-4,30,8);
         ctx.restore();
     }
 
-    // Bullets
-    ctx.fillStyle = "#ffff00";
-    bullets.forEach(b=>{ ctx.beginPath(); ctx.arc(b.x,b.y,4,0,Math.PI*2); ctx.fill(); });
-
-    // Enemies
-    ctx.fillStyle = "#ff3300";
-    enemies.forEach(e=>ctx.fillRect(e.x,e.y,e.w,e.h));
+    // DRAW BULLETS
+    bullets.forEach(b=>{
+        ctx.shadowColor = "#ff0"; ctx.shadowBlur = 15;
+        ctx.fillStyle = "#ffff00";
+        ctx.beginPath(); ctx.arc(b.x,b.y,b.w,0,Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+    });
+    enemyBullets.forEach(b=>{
+        ctx.shadowColor = "#f00"; ctx.shadowBlur = 10;
+        ctx.fillStyle = "#ff3300";
+        ctx.beginPath(); ctx.arc(b.x,b.y,b.w,0,Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+    });
 }
 
-// --- LOOP ---
-function startGame() {
-    running = true;
-    requestAnimationFrame(loop);
-}
-function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
-}
+// === LOOP ===
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+loop();
 </script>
 </body>
 </html>
