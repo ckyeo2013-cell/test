@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Chaos Shooter - SMART BOTS + GUN + WIN SCREEN</title>
+    <title>Chaos Shooter - FIXED MULTIPLAYER</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         * { margin:0; padding:0; box-sizing:border-box; font-family:Arial; overflow:hidden; }
@@ -17,14 +17,16 @@
 
         h1 { font-size:clamp(32px, 8vw, 50px); margin-bottom:20px; color:#ffcc00; text-shadow:0 0 10px #ffcc0077; text-align:center; }
         p { font-size:clamp(16px, 4vw, 20px); margin-bottom:10px; text-align:center; }
+        .error { color:#ff4444; font-size:16px; margin:8px; height:20px; }
         button {
             padding:clamp(10px, 3vw, 12px) clamp(20px, 5vw, 30px); 
             font-size:clamp(16px, 4vw, 20px); 
             background:#ffcc00; color:black; border:none; border-radius:8px;
-            cursor:pointer; margin:8px; box-shadow:0 4px 0 #aa8800;
+            cursor:pointer margin:8px; box-shadow:0 4px 0 #aa8800;
             touch-action:manipulation; min-width:120px; font-weight:bold;
         }
         button.danger { background:#ff4444; box-shadow:0 4px 0 #aa2222; }
+        button.small { padding:8px 16px; font-size:14px; }
         button:active { transform:translateY(4px); box-shadow:none; }
         input { padding:10px; font-size:18px; text-align:center; width:220px; margin:10px; border-radius:6px; border:none; }
 
@@ -34,6 +36,7 @@
         #leaveBtn { position:absolute; top:10px; left:50%; transform:translateX(-50%); z-index:20; }
         #resetText { position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:#ff4444; font-size:32px; font-weight:bold; z-index:30; background:rgba(0,0,0,0.7); padding:15px 30px; border-radius:10px; display:none; }
         #winText { position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:#00ff44; font-size:40px; font-weight:bold; z-index:40; background:rgba(0,0,0,0.8); padding:20px 40px; border-radius:12px; display:none; text-align:center; }
+        #userInfo { position:absolute; top:10px; left:10px; color:#ffcc00; font-weight:bold; background:rgba(0,0,0,0.6); padding:4px 8px; border-radius:6px; z-index:12; }
 
         #touchControls {
             position:absolute; bottom:20px; left:0; right:0;
@@ -57,12 +60,15 @@
     <button onclick="setDevice('mobile')">📱 MOBILE / TABLET</button>
 </div>
 
-<!-- LOGIN — ✅ SAVED FOREVER -->
+<!-- LOGIN / REGISTER — SECURED -->
 <div id="loginScreen" class="screen">
-    <h1>ACCOUNT LOGIN</h1>
-    <input type="text" id="user" placeholder="Username">
-    <input type="password" id="pass" placeholder="Password">
-    <button onclick="loginDone()">LOGIN / CONTINUE</button>
+    <h1>ACCOUNT</h1>
+    <p id="loginTitle">Login or Create Account</p>
+    <input type="text" id="user" placeholder="Username (3-12 chars)" maxlength="12">
+    <input type="password" id="pass" placeholder="Password (min 4 chars)" maxlength="20">
+    <div class="error" id="errorText"></div>
+    <button onclick="handleLoginRegister()">CONTINUE</button>
+    <button class="small" onclick="toggleMode()" id="modeBtn">Switch to Register</button>
 </div>
 
 <!-- MAIN MENU -->
@@ -82,6 +88,7 @@
 </div>
 
 <!-- GAME UI -->
+<div id="userInfo"></div>
 <div id="ui">
     <p>❤️ <span id="health">100</span></p>
     <p>👹 <span id="enemies">0</span></p>
@@ -104,23 +111,64 @@
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
 <script>
-// ✅ PERMANENT LOGIN — REMEMBERED FOREVER
+// ACCOUNT SYSTEM
 let deviceType = "";
-let loggedIn = localStorage.getItem('loggedIn') === 'true';
+let loggedIn = false;
+let currentUsername = "";
+let isRegisterMode = false;
+
+function getAccounts() {
+    return JSON.parse(localStorage.getItem('gameAccounts') || '{}');
+}
+function saveAccount(user, pass) {
+    let acc = getAccounts();
+    acc[user] = pass;
+    localStorage.setItem('gameAccounts', JSON.stringify(acc));
+}
 
 function setDevice(type) {
     deviceType = type;
     document.getElementById('deviceScreen').classList.remove('active');
     if (type === 'mobile') document.getElementById('touchControls').style.display = 'flex';
-    if(!loggedIn) document.getElementById('loginScreen').classList.add('active');
-    else document.getElementById('homeScreen').classList.add('active');
+    document.getElementById('loginScreen').classList.add('active');
 }
-function loginDone() {
-    loggedIn = true;
-    localStorage.setItem('loggedIn', 'true');
-    document.getElementById('loginScreen').classList.remove('active');
-    document.getElementById('homeScreen').classList.add('active');
+
+function toggleMode() {
+    isRegisterMode = !isRegisterMode;
+    document.getElementById('loginTitle').textContent = isRegisterMode ? "Create New Account" : "Login to Your Account";
+    document.getElementById('modeBtn').textContent = isRegisterMode ? "Switch to Login" : "Switch to Register";
+    document.getElementById('errorText').textContent = "";
 }
+
+function handleLoginRegister() {
+    const user = document.getElementById('user').value.trim();
+    const pass = document.getElementById('pass').value.trim();
+    const err = document.getElementById('errorText');
+    const accounts = getAccounts();
+
+    if(!user || !pass) return err.textContent = "❌ Fill in both fields!";
+    if(user.length < 3 || user.length > 12) return err.textContent = "❌ Username: 3-12 characters";
+    if(pass.length < 4) return err.textContent = "❌ Password: min 4 characters";
+
+    if(isRegisterMode) {
+        if(accounts[user]) return err.textContent = "❌ Username already taken!";
+        saveAccount(user, pass);
+        loggedIn = true;
+        currentUsername = user;
+        document.getElementById('userInfo').textContent = "👤 " + currentUsername;
+        document.getElementById('loginScreen').classList.remove('active');
+        document.getElementById('homeScreen').classList.add('active');
+    } else {
+        if(!accounts[user]) return err.textContent = "❌ Account not found — register first!";
+        if(accounts[user] !== pass) return err.textContent = "❌ Wrong password!";
+        loggedIn = true;
+        currentUsername = user;
+        document.getElementById('userInfo').textContent = "👤 " + currentUsername;
+        document.getElementById('loginScreen').classList.remove('active');
+        document.getElementById('homeScreen').classList.add('active');
+    }
+}
+
 function showScreen(id) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     if(id) document.getElementById(id).classList.add('active');
@@ -146,7 +194,7 @@ let p = {
     team: "none", color: "#0099ff"
 };
 
-// ✅ BOTS: **SMART WHEN LOW — NO HIDING, FIGHT BETTER**
+// BOTS
 let bots = [];
 function resetBots() {
     bots = [
@@ -168,7 +216,7 @@ function resetBots() {
     ];
 }
 
-// ✅ MARIO PLATFORMS
+// PLATFORMS
 const platforms = [
     {x:0,y:550,w:1000,h:50}, {x:200,y:450,w:150,h:20}, {x:450,y:380,w:150,h:20},
     {x:700,y:300,w:150,h:20}, {x:150,y:220,w:150,h:20}, {x:600,y:180,w:150,h:20}
@@ -177,7 +225,7 @@ const platforms = [
 let bullets = [];
 let enemyBullets = [];
 
-// ✅ MULTIPLAYER + TEAMS
+// ✅ MULTIPLAYER — FIXED COMPLETELY
 let peer, roomId, connections = {}, otherPlayers = {};
 let teamAssignCount = 0;
 
@@ -188,6 +236,7 @@ function createRoom() {
         roomId = id.substr(0,4).toUpperCase();
         document.getElementById('codeText').textContent = roomId;
         gameMode = "multiplayer";
+        // Assign team
         teamAssignCount++;
         p.team = teamAssignCount % 2 === 0 ? "red" : "blue";
         p.color = p.team === "red" ? "#ff3333" : "#3366ff";
@@ -201,6 +250,7 @@ function createRoom() {
         conn.on('close', ()=>delete otherPlayers[conn.connectionId]);
     });
 }
+
 function joinRoom() {
     FULL_RESET();
     roomId = document.getElementById('joinCode').value.trim().toUpperCase();
@@ -210,6 +260,7 @@ function joinRoom() {
         conn.on('open', ()=>{
             connections[conn.connectionId] = conn;
             gameMode = "multiplayer";
+            // Assign team
             teamAssignCount++;
             p.team = teamAssignCount % 2 === 0 ? "red" : "blue";
             p.color = p.team === "red" ? "#ff3333" : "#3366ff";
@@ -221,12 +272,15 @@ function joinRoom() {
         conn.on('close', ()=>delete otherPlayers[conn.connectionId]);
     });
 }
+
 function handleData(d, id) {
     if(d.type === 'player') {
         otherPlayers[id] = d.player;
         otherPlayers[id].color = otherPlayers[id].team === "red" ? "#ff3333" : "#3366ff";
     }
-    if(d.type === 'bullet') bullets.push(d.bullet);
+    if(d.type === 'bullet') {
+        bullets.push(d.bullet);
+    }
     if(d.type === 'hit') {
         if(otherPlayers[id] && otherPlayers[id].team !== d.team) { 
             otherPlayers[id].health -= d.dmg;
@@ -238,9 +292,12 @@ function handleData(d, id) {
         }
     }
 }
-function sendData(d) { Object.values(connections).forEach(c=>c.send(d)); }
 
-// START GAME
+function sendData(d) { 
+    Object.values(connections).forEach(c=>c.send(d)); 
+}
+
+// START / RESET
 function startSolo() {
     FULL_RESET();
     gameMode = "solo";
@@ -251,6 +308,7 @@ function startSolo() {
     document.getElementById('winText').style.display = 'none';
     startGame();
 }
+
 function startGame() {
     document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
     running = true;
@@ -259,7 +317,6 @@ function startGame() {
     document.getElementById('leaveBtn').style.display = 'block';
 }
 
-// FULL RESET
 function FULL_RESET() {
     running = false;
     gameMode = "";
@@ -267,7 +324,7 @@ function FULL_RESET() {
     bullets = [];
     enemyBullets = [];
     isDead = false;
-    p.x=150;p.y=500;p.vx=0;p.vy=0;p.health=100; p.maxHealth=100;
+    p.x=150;p.y=500;p.vx=0;p.vy=0;p.health=100;
 
     if(peer) peer.destroy();
     peer = null;
@@ -275,13 +332,14 @@ function FULL_RESET() {
     otherPlayers = {};
     document.getElementById('codeText').textContent = "---";
 }
+
 function leaveGame() {
     FULL_RESET();
     document.getElementById('leaveBtn').style.display = 'none';
     showScreen('homeScreen');
 }
 
-// ✅ DEATH: SOLO = FULL LEVEL RESET
+// DEATH / WIN
 function checkDeath() {
     if(p.health <= 0 && !isDead) {
         isDead = true;
@@ -299,7 +357,6 @@ function checkDeath() {
     }
 }
 
-// ✅ WIN CONDITION — WHEN ALL BOTS DEAD
 function checkWin() {
     if(gameMode === 'solo' && bots.length === 0 && running) {
         running = false;
@@ -330,7 +387,7 @@ function sEnd(){shootTouch=false;}
 // COLLISION
 function collide(a,b){return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;}
 
-// ✅ LINE OF SIGHT
+// LINE OF SIGHT
 function hasLineOfSight(attacker, target) {
     let clear = true;
     platforms.forEach(pl=>{
@@ -344,7 +401,7 @@ function hasLineOfSight(attacker, target) {
 function update(){
     if(!running)return;
 
-    // ✅ PLAYER MOVEMENT
+    // PLAYER MOVEMENT
     if(!isDead){
         if(keys["KeyA"]) p.vx -= p.speed;
         if(keys["KeyD"]) p.vx += p.speed;
@@ -361,14 +418,14 @@ function update(){
         if(p.x<0)p.x=0; if(p.x+p.w>canvas.width)p.x=canvas.width-p.w;
     }
 
-    // ✅ MARIO PLATFORM COLLISION
+    // PLATFORM COLLISION
     p.onGround=false;
     platforms.forEach(pl=>{
         if(collide(p,pl) && p.vy>=0 && p.y+p.h - pl.y <15) {p.y=pl.y-p.h;p.vy=0;p.onGround=true;}
     });
     if(p.y+p.h>canvas.height-10) {p.y=canvas.height-p.h-10;p.vy=0;p.onGround=true;}
 
-    // ✅ SHOOT
+    // SHOOT
     if(!isDead && (mouse.down||shootTouch)&&Date.now()-p.lastShot>p.fireRate){
         p.lastShot=Date.now();
         const b={x:p.x+p.w/2,y:p.y+p.h/2,w:7,h:7,vx:Math.cos(p.angle)*p.bulletSpeed,vy:Math.sin(p.angle)*p.bulletSpeed,life:120,dmg:25,owner:p.id, team:p.team};
@@ -376,16 +433,16 @@ function update(){
         if(gameMode==="multiplayer")sendData({type:'bullet',bullet:b});
     }
 
-    // ✅ SOLO MODE — **SMART LOW HEALTH BEHAVIOR**
+    // SOLO MODE LOGIC
     if(gameMode==="solo"){
         bots.forEach(b=>{
             const distX = p.x - b.x;
             const distY = p.y - b.y;
             const dist = Math.hypot(distX, distY);
-            b.angle = Math.atan2(p.y - (b.y+b.h/2), p.x - (b.x+b.w/2)); // Always aim at you
+            b.angle = Math.atan2(p.y - (b.y+b.h/2), p.x - (b.x+b.w/2));
             b.lineOfSight = hasLineOfSight(b, p);
 
-            // 🧠 DODGE
+            // DODGE
             let danger = false;
             bullets.forEach(bl=>{
                 if(Math.hypot(bl.x-b.x, bl.y-b.y) < 160 && Date.now()-b.lastDodge>800) {
@@ -397,19 +454,18 @@ function update(){
                 }
             });
 
-            // 🧠 **NEW SMART STATES WHEN LOW** — NO HIDING, FIGHT BETTER
+            // SMART STATES
             if(danger) b.state = "dodge";
             else if(b.health < 30) { 
-                // LOW HEALTH = PLAY TACTICAL: keep distance, use cover, flank
-                if(dist < 300) b.state = "retreat_smart"; // back away
-                else if(dist > 500) b.state = "advance_flank"; // flank around
-                else b.state = "attack_careful"; // shoot carefully
+                if(dist < 300) b.state = "retreat_smart";
+                else if(dist > 500) b.state = "advance_flank";
+                else b.state = "attack_careful";
             }
             else if(dist < b.attackRange && b.lineOfSight) b.state = "attack";
             else if(dist < b.detectRange) b.state = "advance";
             else b.state = "patrol";
 
-            // 🧠 BEHAVIOR LOGIC
+            // MOVEMENT LOGIC
             if(b.state === "patrol") {
                 if(b.x<50 || b.x+b.w>canvas.width-50) b.dir*=-1;
                 b.speed = b.baseSpeed * 0.9;
@@ -430,44 +486,38 @@ function update(){
                     if(dist < 180) b.dir *= -1;
                 }
             }
-            // ✅ SMART LOW HEALTH BEHAVIORS
             else if(b.state === "retreat_smart") {
-                b.dir = distX>0?-1:1; // Move away from you
-                b.speed = b.baseSpeed * 2.2; // Fast back
-                if(b.onGround && Math.random()>0.6) b.vy=-12; // Jump over obstacles
+                b.dir = distX>0?-1:1;
+                b.speed = b.baseSpeed * 2.2;
+                if(b.onGround && Math.random()>0.6) b.vy=-12;
             }
             else if(b.state === "advance_flank") {
-                b.flankSide = distX >0 ? -1 : 1; // Go around side
+                b.flankSide = distX >0 ? -1 : 1;
                 b.dir = b.flankSide;
                 b.speed = b.baseSpeed * 1.8;
             }
             else if(b.state === "attack_careful") {
-                b.speed = b.baseSpeed * 0.4; // Slow, aim carefully
-                b.dir = Math.random()>0.7 ? 1 : -1; // Small steps side to side
+                b.speed = b.baseSpeed * 0.4;
+                b.dir = Math.random()>0.7 ? 1 : -1;
             }
             else if(b.state === "dodge") {
                 b.speed = b.baseSpeed * 2.5;
             }
 
-            // ✅ MOVEMENT
+            // APPLY MOVEMENT
             b.x += b.speed * b.dir;
             if(b.x < 40) {b.x=40; b.dir *= -1;}
             if(b.x + b.w > canvas.width - 40) {b.x = canvas.width - 40 - b.w; b.dir *= -1;}
 
-            // ✅ GRAVITY
+            // GRAVITY
             b.vy += 0.6; b.y += b.vy; b.onGround=false;
-
-            // ✅ PLATFORM & FLOOR SAFETY
             platforms.forEach(pl=>{
                 if(collide(b,pl) && b.vy>=0 && b.y+b.h - pl.y <18) {b.y=pl.y-b.h;b.vy=0;b.onGround=true;}
             });
             if(b.y+b.h>canvas.height-10) {b.y=canvas.height-b.h-10;b.vy=0;b.onGround=true;}
 
-            // ✅ SHOOT — LOW HEALTH = MORE ACCURATE, STILL SHOOTS
-            let fireRate;
-            if(b.health < 30) fireRate = dist < 400 ? 900 : 1400; // slower but consistent
-            else fireRate = b.lineOfSight ? (dist<300?700:1000) : 2200;
-
+            // SHOOT
+            let fireRate = b.health < 30 ? (dist < 400 ? 900 : 1400) : (b.lineOfSight ? (dist<300?700:1000) : 2200);
             if(b.state !== "retreat_smart" && dist < b.attackRange && Date.now()-b.lastShot>fireRate){
                 b.lastShot=Date.now();
                 enemyBullets.push({x:b.x + b.w/2, y:b.y + b.h/2, w:7, h:7, vx:Math.cos(b.angle)*9, vy:Math.sin(b.angle)*9, life:120, dmg:18});
@@ -482,7 +532,7 @@ function update(){
                 if(collide(bl,bots[j])){
                     bots[j].health -= bl.dmg;
                     bullets.splice(i,1);
-                    if(bots[j].health <= 0){bots.splice(j,1); kills++; checkWin();} // ✅ CHECK WIN WHEN KILL
+                    if(bots[j].health <= 0){bots.splice(j,1); kills++; checkWin();}
                     break;
                 }
             }
@@ -494,34 +544,37 @@ function update(){
         }
     }
 
-    // ✅ MULTIPLAYER
+    // MULTIPLAYER LOGIC
     if(gameMode==="multiplayer"){
         if(!isDead) sendData({type:'player',player:p});
         bullets.forEach((bl,i)=>{
             bl.x+=bl.vx;bl.y+=bl.vy;bl.life--;
             if(bl.life<0){bullets.splice(i,1);return;}
             Object.entries(otherPlayers).forEach(([id,op])=>{
-                if(collide(bl,op) && bl.team !== op.team){ sendData({type:'hit',target:id,dmg:bl.dmg,team:bl.team}); bullets.splice(i,1); kills++; }
+                if(collide(bl,op) && bl.team !== op.team){ 
+                    sendData({type:'hit',target:id,dmg:bl.dmg,team:bl.team}); 
+                    bullets.splice(i,1); kills++; 
+                }
             });
         });
     }
 
-    // UI
+    // UPDATE UI
     document.getElementById("health").textContent=Math.max(0,p.health);
     document.getElementById("enemies").textContent=gameMode==="solo"?bots.length:0;
     document.getElementById("players").textContent=Object.keys(otherPlayers).length;
     document.getElementById("kills").textContent=kills;
 }
 
-// ✅ DRAW — **ADDED GUN MODEL**
+// DRAW FUNCTIONS
 function drawGun(x,y,angle,color){
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(angle);
     ctx.fillStyle="#222";
-    ctx.fillRect(0, -3, 22, 6); // Gun barrel
+    ctx.fillRect(0, -3, 22, 6);
     ctx.fillStyle=color;
-    ctx.fillRect(0, -2, 18, 4); // Gun body
+    ctx.fillRect(0, -2, 18, 4);
     ctx.restore();
 }
 
@@ -535,7 +588,6 @@ function draw(){
             ctx.fillRect(b.x,b.y,b.w,b.h);
             ctx.fillStyle="#000"; ctx.fillRect(b.x,b.y-10,b.w,6);
             ctx.fillStyle="#0F0"; ctx.fillRect(b.x,b.y-10,(b.health/b.maxHealth)*b.w,6);
-            // ✅ DRAW GUN ON BOTS
             drawGun(b.x+b.w/2, b.y+b.h/2, b.angle, "#111");
         });
     }
@@ -549,7 +601,6 @@ function draw(){
 
     if(!isDead){
         ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,p.w,p.h);
-        // ✅ DRAW GUN ON YOU
         drawGun(p.x+p.w/2, p.y+p.h/2, p.angle, p.color);
     }
 
