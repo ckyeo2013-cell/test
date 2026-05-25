@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Chaos Shooter - FAST AGGRESSIVE SMART BOTS</title>
+    <title>Chaos Shooter - FAIR BALANCED SMART BOTS</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         * { margin:0; padding:0; box-sizing:border-box; font-family:Arial; overflow:hidden; }
@@ -144,25 +144,26 @@ let p = {
     team: "none", color: "#0099ff"
 };
 
-// ✅ BOTS: **FAST, AGGRESSIVE, SHARP** — smart AND quick
+// ✅ BOTS: **FAIR, BALANCED, SMART** — SPAWN FAR, SPEED/DAMAGE TUNED
 let bots = [];
 function resetBots() {
     bots = [
-        {x:700, y:500, w:30, h:50, health:120, maxHealth:120, 
-         baseSpeed:1.4, speed:1.4, maxSpeed:12, // ✅ DOUBLE SPEED, HIGH MAX SPEED
+        // ✅ SPAWN FAR AWAY, NEVER CLOSE
+        {x:850, y:500, w:30, h:50, health:100, maxHealth:100, 
+         baseSpeed:1.1, speed:1.1, maxSpeed:7, // ✅ FAST BUT NOT OVERPOWERED
          dir:-1, color:"#FF0000", vy:0, lastShot:0, onGround:false, 
-         state:"patrol", detectRange:800, attackRange:550, 
-         lastDodge:0, lastMoveChange:0, coverPoint:null, flankSide:1, lineOfSight:true},
-        {x:400, y:400, w:30, h:50, health:120, maxHealth:120, 
-         baseSpeed:1.4, speed:1.4, maxSpeed:12,
+         state:"patrol", detectRange:700, attackRange:450, 
+         lastDodge:0, lastMoveChange:0, flankSide:1, lineOfSight:true},
+        {x:50, y:400, w:30, h:50, health:100, maxHealth:100, 
+         baseSpeed:1.1, speed:1.1, maxSpeed:7,
          dir:1, color:"#FF2200", vy:0, lastShot:0, onGround:false, 
-         state:"patrol", detectRange:800, attackRange:550, 
-         lastDodge:0, lastMoveChange:0, coverPoint:null, flankSide:-1, lineOfSight:true},
-        {x:200, y:220, w:30, h:50, health:120, maxHealth:120, 
-         baseSpeed:1.4, speed:1.4, maxSpeed:12,
-         dir:1, color:"#FF4400", vy:0, lastShot:0, onGround:false, 
-         state:"patrol", detectRange:800, attackRange:550, 
-         lastDodge:0, lastMoveChange:0, coverPoint:null, flankSide:1, lineOfSight:true}
+         state:"patrol", detectRange:700, attackRange:450, 
+         lastDodge:0, lastMoveChange:0, flankSide:-1, lineOfSight:true},
+        {x:900, y:220, w:30, h:50, health:100, maxHealth:100, 
+         baseSpeed:1.1, speed:1.1, maxSpeed:7,
+         dir:-1, color:"#FF4400", vy:0, lastShot:0, onGround:false, 
+         state:"patrol", detectRange:700, attackRange:450, 
+         lastDodge:0, lastMoveChange:0, flankSide:1, lineOfSight:true}
     ];
 }
 
@@ -365,7 +366,7 @@ function update(){
         if(gameMode==="multiplayer")sendData({type:'bullet',bullet:b});
     }
 
-    // ✅ SOLO MODE — **FAST AGGRESSIVE SMART AI**
+    // ✅ SOLO MODE — **FAIR, SMOOTH, SMART**
     if(gameMode==="solo"){
         bots.forEach(b=>{
             const distX = p.x - b.x;
@@ -373,58 +374,58 @@ function update(){
             const dist = Math.hypot(distX, distY);
             b.lineOfSight = hasLineOfSight(b, p);
 
-            // 🧠 **FAST DECISIONS** — change state instantly
+            // 🧠 DODGE — smooth, not spammed, fair reaction
             let danger = false;
             bullets.forEach(bl=>{
-                if(Math.hypot(bl.x-b.x, bl.y-b.y) < 150 && Date.now()-b.lastDodge>400) { // ✅ DODGE INSTANTLY
+                if(Math.hypot(bl.x-b.x, bl.y-b.y) < 160 && Date.now()-b.lastDodge>800) { // ✅ REACTION DELAY SO YOU CAN HIT THEM
                     danger=true; b.lastDodge=Date.now();
                     if(b.onGround) {
-                        if(Math.random()>0.4) {b.vy=-14;b.onGround=false;} // ✅ HIGH JUMP DODGE
-                        else {b.dir *= -1.5; b.speed = b.baseSpeed * 3;} // ✅ SPRINT AWAY
+                        if(Math.random()>0.5) {b.vy=-13;b.onGround=false;} // ✅ NORMAL JUMP DODGE
+                        else {b.dir *= -1; b.speed = b.baseSpeed * 1.8;} // ✅ SIDE STEP — FAST BUT NOT CRAZY
                     }
                 }
             });
 
-            // 🧠 STATES — FAST & AGGRESSIVE
+            // 🧠 STATES — STABLE, NO RAPID SWITCHING
             if(danger) b.state = "dodge";
-            else if(b.health < 45) b.state = "retreat";
+            else if(b.health < 35) b.state = "retreat";
             else if(dist < b.attackRange && b.lineOfSight) b.state = "attack";
             else if(dist < b.detectRange) b.state = "advance";
             else b.state = "patrol";
 
-            // 🧠 BEHAVIOR
+            // 🧠 BEHAVIOR — BALANCED SPEED & AGGRESSION
             if(b.state === "patrol") {
                 if(b.x<50 || b.x+b.w>canvas.width-50) b.dir*=-1;
-                b.speed = b.baseSpeed * 1.1; // ✅ FAST PATROL
+                b.speed = b.baseSpeed * 0.9;
             }
             else if(b.state === "advance") {
-                // ✅ **RAPID FLANKING** — change side often
-                if(Date.now()-b.lastMoveChange>900) { b.flankSide*=-1; b.lastMoveChange=Date.now(); }
-                b.dir = (distX + b.flankSide*100) >0 ?1:-1;
-                b.speed = b.baseSpeed * 2.2; // ✅ SPRINT TOWARDS YOU
-                // ✅ **FAST JUMP TO HIGH GROUND**
-                if(b.onGround && distY < -50 && Math.abs(distX)<180) {b.vy=-15;b.onGround=false;}
+                // ✅ FLANK — CHANGE SIDE LESS OFTEN, FAIR APPROACH
+                if(Date.now()-b.lastMoveChange>2000) { b.flankSide *= -1; b.lastMoveChange=Date.now(); }
+                b.dir = (distX + b.flankSide*110) >0 ?1:-1;
+                b.speed = b.baseSpeed * 1.4; // ✅ FAST ENOUGH TO CHALLENGE, NOT UNFAST
+                // ✅ JUMP — ONLY WHEN LOGICAL
+                if(b.onGround && distY < -60 && Math.abs(distX)<160 && Math.random()>0.75) {b.vy=-14;b.onGround=false;}
             }
             else if(b.state === "attack") {
                 if(!b.lineOfSight) {
                     b.dir = distX>0?1:-1;
-                    b.speed = b.baseSpeed * 1.8; // ✅ RUSH TO GET SHOT
+                    b.speed = b.baseSpeed * 1.1;
                 } else {
-                    // ✅ CIRCLE YOU FAST
-                    b.dir = Math.random()>0.5 ?1:-1;
-                    b.speed = b.baseSpeed * 1.3;
-                    if(dist < 200) b.speed *= -1; // Back up fast if too close
+                    if(Math.random() < 0.01) b.dir *= -1;
+                    b.speed = b.baseSpeed * 0.7; // ✅ SLOWER WHEN SHOOTING
+                    if(dist < 180) b.dir *= -1; // ✅ BACK UP WHEN TOO CLOSE
                 }
             }
             else if(b.state === "retreat") {
                 b.dir = distX>0?-1:1;
-                b.speed = b.baseSpeed * 3; // ✅ SPRINT AWAY
-                if(b.onGround) b.vy=-13;
+                b.speed = b.baseSpeed * 2; // ✅ FAST RETREAT
+                if(b.onGround && Math.random()>0.5) b.vy=-12;
             }
 
-            // ✅ MOVEMENT
+            // ✅ MOVEMENT — SMOOTH, NO JITTER
             b.x += b.speed * b.dir;
-            if(b.speed>b.maxSpeed) b.speed=b.maxSpeed;
+            if(b.x < 40) {b.x=40; b.dir *= -1;}
+            if(b.x + b.w > canvas.width - 40) {b.x = canvas.width - 40 - b.w; b.dir *= -1;}
 
             // ✅ GRAVITY
             b.vy += 0.6; b.y += b.vy; b.onGround=false;
@@ -435,12 +436,12 @@ function update(){
             });
             if(b.y+b.h>canvas.height-10) {b.y=canvas.height-b.h-10;b.vy=0;b.onGround=true;}
 
-            // ✅ **FAST SHOOTING** — quick fire
-            let fireRate = b.lineOfSight ? (dist<300?450:700) : 2000;
+            // ✅ **FAIR SHOOTING** — RATE & DAMAGE BALANCED
+            let fireRate = b.lineOfSight ? (dist<300?700:1000) : 2200; // ✅ SLOWER FIRE RATE
             if(b.state!=="retreat" && dist<b.attackRange && Date.now()-b.lastShot>fireRate){
                 b.lastShot=Date.now();
                 const ang = Math.atan2(p.y - (b.y+b.h/2), p.x - (b.x+b.w/2));
-                enemyBullets.push({x:b.x + b.w/2, y:b.y + b.h/2, w:7, h:7, vx:Math.cos(ang)*11, vy:Math.sin(ang)*11, life:120, dmg:22});
+                enemyBullets.push({x:b.x + b.w/2, y:b.y + b.h/2, w:7, h:7, vx:Math.cos(ang)*9, vy:Math.sin(ang)*9, life:120, dmg:18}); // ✅ LESS DAMAGE
             }
         });
 
