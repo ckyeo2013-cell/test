@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Chaos Shooter - Mobile + MP Fixed + Colored Bullets</title>
+    <title>Chaos Shooter - Multiplayer Code Fixed</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         * { margin:0; padding:0; box-sizing:border-box; font-family:Arial; }
@@ -42,6 +42,7 @@
         h2 { font-size:clamp(24px, 6vw, 36px); margin-bottom:15px; color:#ffffff; text-align:center; }
         p { font-size:clamp(16px, 4vw, 20px); margin-bottom:8px; text-align:center; }
         .error { color:#ff4444; font-size:16px; margin:4px 0; height:20px; }
+        .success { color:#0f0; font-size:16px; margin:4px 0; height:20px; }
         .room-info { font-size:22px; color:#0f0; font-weight:bold; margin:10px 0; }
         
         button {
@@ -64,7 +65,7 @@
         button:active { transform:translateY(4px); box-shadow:none; }
         input { 
             padding:12px; font-size:18px; text-align:center; width:240px; margin:6px 0; border-radius:6px; border:none; 
-            position:relative; z-index:1100; pointer-events:all;
+            position:relative; z-index:1100; pointer-events:all; text-transform:uppercase;
         }
 
         .team-selector {
@@ -184,6 +185,7 @@
 <div id="multiplayerLobby" class="screen">
     <h1>MULTIPLAYER LOBBY</h1>
     <div id="lobbyRoomInfo" class="room-info"></div>
+    <div id="connectionStatus" class="success"></div>
     
     <div class="team-selector">
         <button class="team-red" id="btnRed" onclick="selectTeam('red')">RED TEAM</button>
@@ -195,7 +197,7 @@
 
     <button id="createBtn" onclick="createRoom()">CREATE NEW ROOM</button>
     <div>
-        <input type="text" id="joinCodeInput" placeholder="ENTER ROOM CODE" maxlength="4">
+        <input type="text" id="joinCodeInput" placeholder="ENTER 4-LETTER CODE" maxlength="4">
         <button onclick="joinRoom()">JOIN ROOM</button>
     </div>
     <button class="small" onclick="showScreen('homeScreen')">BACK</button>
@@ -298,6 +300,7 @@ function showScreen(id) {
     if(id) document.getElementById(id).classList.add('active');
     document.body.style.cursor = 'default';
     document.getElementById('crosshair').style.display = 'none';
+    document.getElementById('connectionStatus').textContent = "";
 }
 
 // GAME SETUP
@@ -360,7 +363,7 @@ const platforms = [
 let bullets = [];
 let enemyBullets = [];
 
-// MULTIPLAYER - FULLY FIXED
+// ✅ MULTIPLAYER - FULLY FIXED CONNECTION
 let peer, roomId, connections = {}, otherPlayers = {};
 let isHost = false;
 let connectionAttempt = false;
@@ -382,20 +385,25 @@ function selectTeam(team) {
     }
 }
 
+// ✅ FIXED: Room codes are clean 4-letter, always work
 function createRoom() {
     if(connectionAttempt) return;
     connectionAttempt = true;
     FULL_RESET();
     isHost = true;
 
-    peer = new Peer(undefined, {
-        debug: 0,
+    // Generate clean 4-letter uppercase code
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    roomId = Array(4).fill().map(()=>chars[Math.floor(Math.random()*26)]).join('');
+
+    peer = new Peer(roomId, { // ✅ Set ID directly = no mismatch
+        debug: 1,
         config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
     });
 
     peer.on('open', id => {
-        roomId = id.substr(0,4).toUpperCase();
         document.getElementById('lobbyRoomInfo').textContent = "ROOM CODE: " + roomId;
+        document.getElementById('connectionStatus').textContent = "✅ Room created! Share this code with friends";
         document.getElementById('startGameBtn').style.display = 'block';
         gameMode = "multiplayer";
         p.name = currentUsername;
@@ -406,14 +414,15 @@ function createRoom() {
     peer.on('connection', conn => {
         conn.on('open', () => {
             connections[conn.connectionId] = conn;
-            // Send existing players to new connection
+            document.getElementById('connectionStatus').textContent = "✅ Player joined!";
+            // Send full current state
             conn.send({
                 type: 'init',
                 selfId: conn.connectionId,
                 players: Object.values(otherPlayers),
                 host: {x:p.x,y:p.y,health:p.health,angle:p.angle,team:p.team,color:p.color,name:p.name}
             });
-            // Tell everyone about new player
+            // Notify everyone
             sendData({type:'playerJoin', id:conn.connectionId, player:{x:0,y:0,health:100,angle:0,team:'none',color:'#888',name:'New Player'}});
         });
 
@@ -422,29 +431,31 @@ function createRoom() {
             delete connections[conn.connectionId]; 
             delete otherPlayers[conn.connectionId]; 
             sendData({type:'playerLeave', id:conn.connectionId});
+            document.getElementById('connectionStatus').textContent = "⚠️ Player left";
         });
-        conn.on('error', () => { 
+        conn.on('error', err => {
+            document.getElementById('connectionStatus').textContent = "❌ Connection error: " + err.type;
             delete connections[conn.connectionId]; 
-            delete otherPlayers[conn.connectionId]; 
+            delete otherPlayers[conn.connectionId];
         });
     });
 
     peer.on('error', err => {
-        alert("Error creating room: " + err.type);
+        document.getElementById('connectionStatus').textContent = "❌ Error: " + err.type;
         connectionAttempt = false;
     });
 }
 
 function joinRoom() {
-    const code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
-    if(!code || connectionAttempt) return;
+    let code = document.getElementById('joinCodeInput').value.trim().toUpperCase();
+    if(!code || code.length !==4 || connectionAttempt) return;
     connectionAttempt = true;
     FULL_RESET();
     isHost = false;
     roomId = code;
 
     peer = new Peer(undefined, {
-        debug: 0,
+        debug: 1,
         config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
     });
 
@@ -456,24 +467,24 @@ function joinRoom() {
             gameMode = "multiplayer";
             p.name = currentUsername;
             document.getElementById('lobbyRoomInfo').textContent = "JOINED ROOM: " + roomId;
+            document.getElementById('connectionStatus').textContent = "✅ Connected successfully!";
             showScreen('multiplayerLobby');
             connectionAttempt = false;
         });
 
         conn.on('data', d => handleData(d, conn.connectionId));
         conn.on('close', () => {
-            alert("Disconnected from room");
-            showScreen('homeScreen');
+            document.getElementById('connectionStatus').textContent = "❌ Disconnected from room";
             connectionAttempt = false;
         });
-        conn.on('error', () => {
-            alert("Failed to join — invalid code or room closed");
+        conn.on('error', err => {
+            document.getElementById('connectionStatus').textContent = "❌ Failed: Code wrong / room closed";
             connectionAttempt = false;
         });
     });
 
     peer.on('error', err => {
-        alert("Connection error: " + err.type);
+        document.getElementById('connectionStatus').textContent = "❌ Connection error: " + err.type;
         connectionAttempt = false;
     });
 }
@@ -693,10 +704,8 @@ document.addEventListener('touchmove',e=>{
     }
     attackKnob.style.transform = `translate(calc(-50% + ${attackData.dx}px), calc(-50% + ${attackData.dy}px))`;
     
-    // Aim direction
     if(dist > 8) {
         p.angle = Math.atan2(attackData.dy, attackData.dx);
-        // Update crosshair
         const cx = (p.x+p.w/2) + Math.cos(p.angle)*400;
         const cy = (p.y+p.h/2) + Math.sin(p.angle)*400;
         const rect = canvas.getBoundingClientRect();
@@ -711,7 +720,6 @@ document.addEventListener('touchend',e=>{
     e.preventDefault();
     attackData.active=false;
     attackKnob.style.transform = `translate(-50%, -50%)`;
-    // Shoot when released if aimed
     if(Math.hypot(attackData.dx, attackData.dy) > 15 && !isDead && running) shoot();
     attackData.dx=0; 
     attackData.dy=0;
@@ -757,7 +765,7 @@ function shoot() {
         vx:Math.cos(p.angle)*p.bulletSpeed,
         vy:Math.sin(p.angle)*p.bulletSpeed,
         dmg:25, 
-        color:p.color, // ✅ Same color as player
+        color:p.color,
         team:p.team
     };
     bullets.push(b);
@@ -776,9 +784,8 @@ function update(){
             if(keys['KeyW']&&p.onGround){p.vy=p.jump;p.onGround=false;}
             if(mouse.down) shoot();
         }else{
-            // Mobile movement
             if(Math.abs(moveData.dx)>5) moveX = moveData.dx/maxRange;
-            if(moveData.dy < -25 && p.onGround){p.vy=p.jump;p.onGround=false;} // Jump up
+            if(moveData.dy < -25 && p.onGround){p.vy=p.jump;p.onGround=false;}
         }
         p.vx += moveX * p.speed;
     }
@@ -905,7 +912,6 @@ function draw(){
     if(!isDead) drawEntity({...p, maxHealth:p.maxHealth}, true);
     Object.values(otherPlayers).forEach(drawEntity);
 
-    // ✅ BULLETS USE PLAYER COLOR
     bullets.forEach(bl=>{
         ctx.fillStyle=bl.color;
         ctx.beginPath();ctx.arc(bl.x,bl.y,bl.w,0,Math.PI*2);ctx.fill();
