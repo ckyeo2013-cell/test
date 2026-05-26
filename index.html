@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Chaos Shooter - Usernames + All Fixes</title>
+    <title>Chaos Shooter - Buttons Fixed + All Features</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         * { margin:0; padding:0; box-sizing:border-box; font-family:Arial; }
@@ -53,8 +53,8 @@
             box-shadow:0 4px 0 #aa8800;
             touch-action:manipulation; min-width:140px; font-weight:bold;
             transition: transform 0.1s, box-shadow 0.1s;
-            position:relative; z-index:1100;
-            pointer-events:all;
+            position:relative; z-index:1100 !important;
+            pointer-events:auto !important;
         }
         button.danger { background:#ff4444; box-shadow:0 4px 0 #aa2222; }
         button.small { padding:8px 18px; font-size:15px; min-width:110px; margin:4px 0; }
@@ -65,12 +65,14 @@
         button:active { transform:translateY(4px); box-shadow:none; }
         input { 
             padding:12px; font-size:18px; text-align:center; width:240px; margin:6px 0; border-radius:6px; border:none; 
-            position:relative; z-index:1100; pointer-events:all; text-transform:uppercase;
+            position:relative; z-index:1100 !important;
+            pointer-events:auto !important; text-transform:uppercase;
         }
 
         .team-selector {
             display:flex; gap:15px; margin:15px 0;
-            position:relative; z-index:1100;
+            position:relative; z-index:1100 !important;
+            pointer-events:auto !important;
         }
 
         #ui { 
@@ -87,7 +89,7 @@
             pointer-events:none; z-index:600; transform:translate(-50%, -50%); will-change: left, top; 
             display:none;
         }
-        #leaveBtn { position:absolute; top:10px; left:50%; transform:translateX(-50%); z-index:700; }
+        #leaveBtn { position:absolute; top:10px; left:50%; transform:translateX(-50%); z-index:700 !important; pointer-events:auto !important; }
         #resetText, #winText { 
             position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); 
             color:#ff4444; font-size:32px; font-weight:bold; z-index:800; 
@@ -152,7 +154,6 @@
             z-index:150;
         }
 
-        /* ✅ NEW: Join/leave message style */
         #notification {
             position:absolute;
             top:60px;
@@ -243,10 +244,8 @@
 <div id="crosshair"></div>
 <canvas id="c" width="1920" height="1080"></canvas>
 
-<!-- ✅ NEW: Join/leave notification -->
 <div id="notification"></div>
 
-<!-- DUAL JOYSTICKS -->
 <div id="touchControls">
     <div class="joystick-base" id="moveJoystick">
         <div class="joystick-knob" id="moveKnob"></div>
@@ -394,16 +393,14 @@ let peer, roomId, connections = {}, otherPlayers = {};
 let isHost = false;
 let connectionAttempt = false;
 
-// ✅ NEW: Show join/leave message
 function showNotification(text, type) {
     const n = document.getElementById('notification');
     n.textContent = text;
     n.className = type;
     n.style.display = 'block';
-    // Auto-hide after 5s via CSS animation
 }
 
-// ✅ FIXED: Team change updates color EVERYWHERE instantly
+// ✅ FIXED TEAM SWITCH + NO WRONG COLOR BODIES
 function selectTeam(team) {
     p.team = team;
     if(team === 'red') p.color = '#ff3333';
@@ -451,14 +448,12 @@ function createRoom() {
         conn.on('open', () => {
             connections[conn.connectionId] = conn;
             document.getElementById('connectionStatus').textContent = "✅ Player joined!";
-            // ✅ Send your username + all data
             conn.send({
                 type: 'init',
                 selfId: conn.connectionId,
                 players: Object.values(otherPlayers),
                 host: {x:p.x,y:p.y,health:p.health,angle:p.angle,team:p.team,color:p.color,name:p.name}
             });
-            // ✅ Notify everyone who joined
             const newName = "Player";
             sendData({type:'playerJoin', id:conn.connectionId, player:{x:0,y:0,health:100,angle:0,team:'none',color:'#888',name:newName}});
             showNotification(`✅ ${newName} joined the game!`, 'join');
@@ -558,7 +553,6 @@ function handleData(d, senderId) {
             break;
         case 'teamUpdate':
             if(!otherPlayers[senderId]) otherPlayers[senderId] = {};
-            // ✅ Color + name updates instantly for everyone
             Object.assign(otherPlayers[senderId], {team:d.team, color:d.color, name:d.name});
             break;
         case 'playerJoin':
@@ -635,7 +629,7 @@ function leaveGame() {
     showScreen('homeScreen');
 }
 
-// ✅ FIXED: Multiplayer death works exactly like solo
+// ✅ MULTIPLAYER DEATH WORKS
 function checkDeath() {
     if(p.health <= 0 && !isDead) {
         isDead = true;
@@ -645,14 +639,12 @@ function checkDeath() {
         if(gameMode === 'solo') {
             setTimeout(()=>startSolo(), 2500);
         } else {
-            // Respawn after 3 seconds
             setTimeout(()=>{
                 isDead=false; 
                 p.health=p.maxHealth; 
                 p.x=300; 
                 p.y=900; 
                 document.getElementById('resetText').style.display='none';
-                // Tell everyone you respawned
                 sendData({type:'playerUpdate', data:{x:p.x,y:p.y,health:p.health,angle:p.angle}});
             },3000);
         }
@@ -666,7 +658,7 @@ function checkWin() {
     }
 }
 
-// ✅ PC INPUT
+// ✅ INPUTS
 document.addEventListener("keydown",e=>keys[e.code]=true);
 document.addEventListener("keyup",e=>keys[e.code]=false);
 document.addEventListener("mousemove",e=>{
@@ -933,12 +925,12 @@ function draw(){
 
     function drawEntity(e,isPlayer){
         ctx.fillStyle=e.color;
-        ctx.globalAlpha=e.health<=0?0.5:1; // ✅ Dead body stays, correct color
+        ctx.globalAlpha=e.health<=0?0.5:1;
         ctx.fillRect(e.x,e.y,e.w,e.h);
         ctx.fillStyle='#222';
         ctx.fillRect(e.x,e.y-16,e.w,8);
         ctx.fillStyle=e.team==='red'?'#ff3333':'#33ff33';
-        ctx.fillRect(e.x,e.y-16,e.w*(e.health/e.maxHealth),8);
+        ctx.fillRect(e.x,e.y-16,e.w*(Math.max(0,e.health)/e.maxHealth),8);
 
         ctx.save();
         ctx.translate(e.x+e.w/2, e.y+e.h/2);
@@ -949,7 +941,6 @@ function draw(){
         ctx.fillRect(-2,-2,36,8);
         ctx.restore();
 
-        // ✅ Username above every player
         ctx.fillStyle='#fff';
         ctx.font='bold 16px Arial';
         ctx.textAlign='center';
@@ -960,4 +951,16 @@ function draw(){
     if(gameMode==="solo") bots.forEach(b=>drawEntity(b,false));
     if(!isDead) drawEntity(p,true);
 
-    Object.values(otherPlayers).forEach(pl=>{if(pl.health>0)drawEntity
+    Object.values(otherPlayers).forEach(pl=>{if(pl.health>0)drawEntity(pl,false);});
+
+    bullets.forEach(bl=>{ctx.fillStyle=bl.color;ctx.beginPath();ctx.arc(bl.x,bl.y,bl.w/2,0,Math.PI*2);ctx.fill();});
+    enemyBullets.forEach(bl=>{ctx.fillStyle=bl.color;ctx.beginPath();ctx.arc(bl.x,bl.y,bl.w/2,0,Math.PI*2);ctx.fill();});
+
+    requestAnimationFrame(draw);
+}
+
+setInterval(update,1000/60);
+draw();
+</script>
+</body>
+</html>
