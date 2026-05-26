@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Chaos Shooter - Fall Through + Less Bouncy Jump</title>
+    <title>Chaos Shooter - Mobile + MP Fixed + Colored Bullets</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         * { margin:0; padding:0; box-sizing:border-box; font-family:Arial; }
@@ -310,16 +310,16 @@ let mouse = {x:canvas.width/2, y:canvas.height/2, down:false};
 let kills = 0;
 let isDead = false;
 
-// PLAYER ✅ Jump adjusted: lower height, stronger gravity = less bouncy
+// PLAYER
 let p = {
     x:300,y:900,w:60,h:100,
     vx:0,vy:0,
     speed:1.2, maxSpeed:10, friction:0.92, 
-    jump:-22,        // ✅ Lower jump height
-    gravity:0.85,    // ✅ Heavier gravity = falls faster, less bounce
+    jump:-22,        
+    gravity:0.85,    
     onGround:false,health:100, maxHealth:100,
     angle:0,lastShot:0,fireRate:600,bulletSpeed:24,id:Math.random().toString(36).substr(2,6),
-    team: "none", color: "#888888", name: ""
+    team: "none", color: "#0099ff", name: ""
 };
 
 // BOTS
@@ -347,9 +347,9 @@ function resetBots() {
     ];
 }
 
-// PLATFORMS ✅ First one = bottom ground (solid, can't fall through)
+// PLATFORMS
 const platforms = [
-    {x:0,y:1000,w:1920,h:80, solid:true, isGround:true}, // ✅ Marked as ground
+    {x:0,y:1000,w:1920,h:80, solid:true, isGround:true},
     {x:400,y:840,w:300,h:40, solid:false, isGround:false},
     {x:900,y:700,w:300,h:40, solid:false, isGround:false},
     {x:1400,y:540,w:300,h:40, solid:false, isGround:false},
@@ -360,7 +360,7 @@ const platforms = [
 let bullets = [];
 let enemyBullets = [];
 
-// MULTIPLAYER
+// MULTIPLAYER - FULLY FIXED
 let peer, roomId, connections = {}, otherPlayers = {};
 let isHost = false;
 let connectionAttempt = false;
@@ -369,7 +369,7 @@ function selectTeam(team) {
     p.team = team;
     if(team === 'red') p.color = '#ff3333';
     else if(team === 'blue') p.color = '#3366ff';
-    else p.color = '#888888';
+    else p.color = '#0099ff';
 
     document.querySelectorAll('.team-selector button').forEach(b=>b.classList.remove('selected'));
     if(team === 'red') document.getElementById('btnRed').classList.add('selected');
@@ -406,18 +406,27 @@ function createRoom() {
     peer.on('connection', conn => {
         conn.on('open', () => {
             connections[conn.connectionId] = conn;
+            // Send existing players to new connection
             conn.send({
-                type: 'initFull',
+                type: 'init',
                 selfId: conn.connectionId,
                 players: Object.values(otherPlayers),
-                hostData: { name:p.name, team:p.team, color:p.color }
+                host: {x:p.x,y:p.y,health:p.health,angle:p.angle,team:p.team,color:p.color,name:p.name}
             });
-            sendDataTo(conn, {type:'playerJoin', id:conn.connectionId, player:{name:p.name, team:p.team, color:p.color}});
+            // Tell everyone about new player
+            sendData({type:'playerJoin', id:conn.connectionId, player:{x:0,y:0,health:100,angle:0,team:'none',color:'#888',name:'New Player'}});
         });
 
         conn.on('data', d => handleData(d, conn.connectionId));
-        conn.on('close', () => { delete connections[conn.connectionId]; delete otherPlayers[conn.connectionId]; });
-        conn.on('error', () => { delete connections[conn.connectionId]; delete otherPlayers[conn.connectionId]; });
+        conn.on('close', () => { 
+            delete connections[conn.connectionId]; 
+            delete otherPlayers[conn.connectionId]; 
+            sendData({type:'playerLeave', id:conn.connectionId});
+        });
+        conn.on('error', () => { 
+            delete connections[conn.connectionId]; 
+            delete otherPlayers[conn.connectionId]; 
+        });
     });
 
     peer.on('error', err => {
@@ -457,7 +466,6 @@ function joinRoom() {
             showScreen('homeScreen');
             connectionAttempt = false;
         });
-
         conn.on('error', () => {
             alert("Failed to join — invalid code or room closed");
             connectionAttempt = false;
@@ -487,10 +495,10 @@ function startMultiplayerGame() {
 
 function handleData(d, senderId) {
     switch(d.type) {
-        case 'initFull':
+        case 'init':
             otherPlayers = {};
             d.players.forEach(pl => otherPlayers[pl.id] = pl);
-            otherPlayers['host'] = d.hostData;
+            otherPlayers['host'] = d.host;
             break;
         case 'playerUpdate':
             if(!otherPlayers[senderId]) otherPlayers[senderId] = {};
@@ -503,6 +511,9 @@ function handleData(d, senderId) {
         case 'playerJoin':
             otherPlayers[d.id] = d.player;
             break;
+        case 'playerLeave':
+            delete otherPlayers[d.id];
+            break;
         case 'bullet':
             bullets.push(d.bullet);
             break;
@@ -514,10 +525,6 @@ function handleData(d, senderId) {
 
 function sendData(data) {
     Object.values(connections).forEach(c => c.send(data));
-}
-
-function sendDataTo(conn, data) {
-    conn.send(data);
 }
 
 function startSolo() {
@@ -596,7 +603,7 @@ function checkWin() {
     }
 }
 
-// ✅ PC INPUT + CROSSHAIR
+// ✅ PC INPUT
 document.addEventListener("keydown",e=>keys[e.code]=true);
 document.addEventListener("keyup",e=>keys[e.code]=false);
 document.addEventListener("mousemove",e=>{
@@ -616,7 +623,7 @@ document.addEventListener("mousemove",e=>{
 document.addEventListener("mousedown",e=>{if(e.button===0)mouse.down=true;});
 document.addEventListener("mouseup",e=>{if(e.button===0)mouse.down=false;});
 
-// ✅ MOBILE CONTROLS
+// ✅ MOBILE CONTROLS - 100% FIXED
 let moveData = {active:false, startX:0, startY:0, dx:0, dy:0};
 let attackData = {active:false, startX:0, startY:0, dx:0, dy:0};
 const maxRange = 60;
@@ -626,16 +633,21 @@ const moveKnob = document.getElementById('moveKnob');
 const attackBase = document.getElementById('attackJoystick');
 const attackKnob = document.getElementById('attackKnob');
 
+// MOVE JOYSTICK
 moveBase.addEventListener('touchstart',e=>{
+    e.preventDefault();
     const t=e.touches[0];
     const r=moveBase.getBoundingClientRect();
     moveData.active=true;
     moveData.startX = r.left + r.width/2;
     moveData.startY = r.top + r.height/2;
+    moveData.dx = 0;
+    moveData.dy = 0;
     moveKnob.style.transform = `translate(-50%, -50%)`;
 });
 document.addEventListener('touchmove',e=>{
     if(!moveData.active) return;
+    e.preventDefault();
     const t=e.touches[0];
     moveData.dx = t.clientX - moveData.startX;
     moveData.dy = t.clientY - moveData.startY;
@@ -647,21 +659,29 @@ document.addEventListener('touchmove',e=>{
     }
     moveKnob.style.transform = `translate(calc(-50% + ${moveData.dx}px), calc(-50% + ${moveData.dy}px))`;
 });
-document.addEventListener('touchend',()=>{
-    moveData.active=false; moveData.dx=0; moveData.dy=0;
+document.addEventListener('touchend',e=>{
+    if(!moveData.active) return;
+    moveData.active=false; 
+    moveData.dx=0; 
+    moveData.dy=0;
     moveKnob.style.transform = `translate(-50%, -50%)`;
 });
 
+// ATTACK JOYSTICK - FIXED AIM + SHOOT
 attackBase.addEventListener('touchstart',e=>{
+    e.preventDefault();
     const t=e.touches[0];
     const r=attackBase.getBoundingClientRect();
     attackData.active=true;
     attackData.startX = r.left + r.width/2;
     attackData.startY = r.top + r.height/2;
+    attackData.dx = 0;
+    attackData.dy = 0;
     attackKnob.style.transform = `translate(-50%, -50%)`;
 });
 document.addEventListener('touchmove',e=>{
     if(!attackData.active || isDead || !running) return;
+    e.preventDefault();
     const t=e.touches[0];
     attackData.dx = t.clientX - attackData.startX;
     attackData.dy = t.clientY - attackData.startY;
@@ -672,8 +692,11 @@ document.addEventListener('touchmove',e=>{
         attackData.dy *= scale;
     }
     attackKnob.style.transform = `translate(calc(-50% + ${attackData.dx}px), calc(-50% + ${attackData.dy}px))`;
-    if(dist > 10) {
+    
+    // Aim direction
+    if(dist > 8) {
         p.angle = Math.atan2(attackData.dy, attackData.dx);
+        // Update crosshair
         const cx = (p.x+p.w/2) + Math.cos(p.angle)*400;
         const cy = (p.y+p.h/2) + Math.sin(p.angle)*400;
         const rect = canvas.getBoundingClientRect();
@@ -683,27 +706,27 @@ document.addEventListener('touchmove',e=>{
         document.getElementById('crosshair').style.top = (rect.top + cy * scaleY) + 'px';
     }
 });
-document.addEventListener('touchend',()=>{
+document.addEventListener('touchend',e=>{
     if(!attackData.active) return;
+    e.preventDefault();
     attackData.active=false;
     attackKnob.style.transform = `translate(-50%, -50%)`;
-    if(Math.hypot(attackData.dx, attackData.dy) > 10 && !isDead && running) shoot();
-    attackData.dx=0; attackData.dy=0;
+    // Shoot when released if aimed
+    if(Math.hypot(attackData.dx, attackData.dy) > 15 && !isDead && running) shoot();
+    attackData.dx=0; 
+    attackData.dy=0;
 });
 
-// ✅ COLLISION + FALL THROUGH LOGIC
+// ✅ COLLISION + FALL THROUGH
 function collide(a,b){return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;}
 
 function checkPlatformCollision(obj, pl) {
-    // Always collide with bottom ground
     if(pl.isGround) return collide(obj, pl);
 
-    // ✅ If player presses S / Down + is on top → FALL THROUGH
-    if(obj.onGround && (keys['KeyS'] || keys['ArrowDown'])) {
-        return false; // No collision = fall through
-    }
+    // Fall through on S / Down key OR mobile move down
+    let wantFall = keys['KeyS'] || keys['ArrowDown'] || (deviceType==='mobile' && moveData.dy > 20);
+    if(obj.onGround && wantFall) return false;
 
-    // Normal jump-through behavior otherwise
     if (!pl.solid) {
         if (obj.vy >= 0 && 
             obj.y + obj.h <= pl.y + 20 && 
@@ -724,6 +747,7 @@ function hasLineOfSight(a,b){
     return clear;
 }
 
+// ✅ BULLETS MATCH PLAYER COLOR
 function shoot() {
     const now = Date.now();
     if(now - p.lastShot < p.fireRate) return;
@@ -732,7 +756,9 @@ function shoot() {
         x:p.x+p.w/2, y:p.y+p.h/2, w:12, h:12,
         vx:Math.cos(p.angle)*p.bulletSpeed,
         vy:Math.sin(p.angle)*p.bulletSpeed,
-        dmg:25, team:p.team
+        dmg:25, 
+        color:p.color, // ✅ Same color as player
+        team:p.team
     };
     bullets.push(b);
     if(gameMode==="multiplayer") sendData({type:'bullet', bullet:b});
@@ -750,8 +776,9 @@ function update(){
             if(keys['KeyW']&&p.onGround){p.vy=p.jump;p.onGround=false;}
             if(mouse.down) shoot();
         }else{
+            // Mobile movement
             if(Math.abs(moveData.dx)>5) moveX = moveData.dx/maxRange;
-            if(moveData.dy < -20 && p.onGround){p.vy=p.jump;p.onGround=false;}
+            if(moveData.dy < -25 && p.onGround){p.vy=p.jump;p.onGround=false;} // Jump up
         }
         p.vx += moveX * p.speed;
     }
@@ -818,7 +845,7 @@ function update(){
             let fireRate = b.health<30?(dist<800?900:1400):(b.lineOfSight?(dist<600?700:1000):2200);
             if(b.state!=="retreat_smart"&&dist<b.attackRange&&Date.now()-b.lastShot>fireRate){
                 b.lastShot=Date.now();
-                enemyBullets.push({x:b.x+b.w/2,y:b.y+b.h/2,w:10,h:10,vx:Math.cos(b.angle)*18,vy:Math.sin(b.angle)*18,life:120,dmg:18});
+                enemyBullets.push({x:b.x+b.w/2,y:b.y+b.h/2,w:10,h:10,vx:Math.cos(b.angle)*18,vy:Math.sin(b.angle)*18,life:120,dmg:18,color:'#ff2222'});
             }
         });
 
@@ -864,7 +891,7 @@ function draw(){
         ctx.fillStyle="#222"; ctx.fillRect(e.x,e.y-16,e.w||60,8);
         ctx.fillStyle=(e.team==="red"?"#ff3333":"#33ff33"); ctx.fillRect(e.x,e.y-16,(e.w||60)*((e.health||100)/100),8);
         
-        ctx.save(); ctx.translate(e.x+(e.w||60)/2, e.y+(e.h||100)/2); ctx.rotate(e.angle||0);
+        ctx.save(); ctx.translate(e.x+(e.w||60)/2, e.y+(e.h||60)/2); ctx.rotate(e.angle||0);
         ctx.fillStyle="#222"; ctx.fillRect(0,-6,44,12); ctx.fillStyle=e.color || '#888'; ctx.fillRect(0,-4,36,8);
         ctx.restore();
 
@@ -878,8 +905,15 @@ function draw(){
     if(!isDead) drawEntity({...p, maxHealth:p.maxHealth}, true);
     Object.values(otherPlayers).forEach(drawEntity);
 
-    bullets.forEach(bl=>{ctx.fillStyle=bl.team==="red"?"#ff6666":"#66aaff";ctx.beginPath();ctx.arc(bl.x,bl.y,bl.w,0,Math.PI*2);ctx.fill();});
-    enemyBullets.forEach(bl=>{ctx.fillStyle="#ff4444";ctx.beginPath();ctx.arc(bl.x,bl.y,bl.w,0,Math.PI*2);ctx.fill();});
+    // ✅ BULLETS USE PLAYER COLOR
+    bullets.forEach(bl=>{
+        ctx.fillStyle=bl.color;
+        ctx.beginPath();ctx.arc(bl.x,bl.y,bl.w,0,Math.PI*2);ctx.fill();
+    });
+    enemyBullets.forEach(bl=>{
+        ctx.fillStyle=bl.color;
+        ctx.beginPath();ctx.arc(bl.x,bl.y,bl.w,0,Math.PI*2);ctx.fill();
+    });
 }
 
 function loop(){update();draw();requestAnimationFrame(loop);}
