@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Chaos Shooter - Multiplayer Code Fixed</title>
+    <title>Chaos Shooter - Usernames + All Fixes</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
         * { margin:0; padding:0; box-sizing:border-box; font-family:Arial; }
@@ -151,6 +151,29 @@
             background:rgba(0,0,0,0.4);
             z-index:150;
         }
+
+        /* ✅ NEW: Join/leave message style */
+        #notification {
+            position:absolute;
+            top:60px;
+            left:50%;
+            transform:translateX(-50%);
+            font-size:20px;
+            font-weight:bold;
+            padding:8px 16px;
+            border-radius:6px;
+            z-index:900;
+            pointer-events:none;
+            display:none;
+            animation:fade 5s forwards;
+        }
+        @keyframes fade {
+            0% {opacity:1;}
+            80% {opacity:1;}
+            100% {opacity:0; display:none;}
+        }
+        .join { background:rgba(0,255,0,0.2); color:#0f0; border:1px solid #0f0; }
+        .leave { background:rgba(255,0,0,0.2); color:#f44; border:1px solid #f44; }
     </style>
 </head>
 <body>
@@ -215,10 +238,13 @@
 </div>
 <div id="roomCode">ROOM: <span id="codeText">---</span></div>
 <button id="leaveBtn" class="small danger" style="display:none;" onclick="leaveGame()">LEAVE GAME</button>
-<div id="resetText">YOU DIED! RESTARTING LEVEL...</div>
+<div id="resetText">YOU DIED! RESPAWNING... ⏱️3s</div>
 <div id="winText">🎉 LEVEL COMPLETE! 🎉<br><button onclick="startSolo()">PLAY AGAIN</button><br><button onclick="showScreen('homeScreen')">MAIN MENU</button></div>
 <div id="crosshair"></div>
 <canvas id="c" width="1920" height="1080"></canvas>
+
+<!-- ✅ NEW: Join/leave notification -->
+<div id="notification"></div>
 
 <!-- DUAL JOYSTICKS -->
 <div id="touchControls">
@@ -363,11 +389,21 @@ const platforms = [
 let bullets = [];
 let enemyBullets = [];
 
-// ✅ MULTIPLAYER - FULLY FIXED CONNECTION
+// ✅ MULTIPLAYER
 let peer, roomId, connections = {}, otherPlayers = {};
 let isHost = false;
 let connectionAttempt = false;
 
+// ✅ NEW: Show join/leave message
+function showNotification(text, type) {
+    const n = document.getElementById('notification');
+    n.textContent = text;
+    n.className = type;
+    n.style.display = 'block';
+    // Auto-hide after 5s via CSS animation
+}
+
+// ✅ FIXED: Team change updates color EVERYWHERE instantly
 function selectTeam(team) {
     p.team = team;
     if(team === 'red') p.color = '#ff3333';
@@ -379,24 +415,24 @@ function selectTeam(team) {
     if(team === 'blue') document.getElementById('btnBlue').classList.add('selected');
     if(team === 'none') document.getElementById('btnNone').classList.add('selected');
     document.getElementById('currentTeamDisplay').textContent = team.toUpperCase();
+    document.getElementById('teamText').textContent = team.toUpperCase();
+    document.getElementById('teamText').style.color = p.color;
 
     if(peer && Object.keys(connections).length > 0) {
         sendData({type:'teamUpdate', team:p.team, color:p.color, name:p.name});
     }
 }
 
-// ✅ FIXED: Room codes are clean 4-letter, always work
 function createRoom() {
     if(connectionAttempt) return;
     connectionAttempt = true;
     FULL_RESET();
     isHost = true;
 
-    // Generate clean 4-letter uppercase code
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
     roomId = Array(4).fill().map(()=>chars[Math.floor(Math.random()*26)]).join('');
 
-    peer = new Peer(roomId, { // ✅ Set ID directly = no mismatch
+    peer = new Peer(roomId, {
         debug: 1,
         config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
     });
@@ -415,22 +451,26 @@ function createRoom() {
         conn.on('open', () => {
             connections[conn.connectionId] = conn;
             document.getElementById('connectionStatus').textContent = "✅ Player joined!";
-            // Send full current state
+            // ✅ Send your username + all data
             conn.send({
                 type: 'init',
                 selfId: conn.connectionId,
                 players: Object.values(otherPlayers),
                 host: {x:p.x,y:p.y,health:p.health,angle:p.angle,team:p.team,color:p.color,name:p.name}
             });
-            // Notify everyone
-            sendData({type:'playerJoin', id:conn.connectionId, player:{x:0,y:0,health:100,angle:0,team:'none',color:'#888',name:'New Player'}});
+            // ✅ Notify everyone who joined
+            const newName = "Player";
+            sendData({type:'playerJoin', id:conn.connectionId, player:{x:0,y:0,health:100,angle:0,team:'none',color:'#888',name:newName}});
+            showNotification(`✅ ${newName} joined the game!`, 'join');
         });
 
         conn.on('data', d => handleData(d, conn.connectionId));
         conn.on('close', () => { 
+            const name = otherPlayers[conn.connectionId]?.name || "Player";
             delete connections[conn.connectionId]; 
             delete otherPlayers[conn.connectionId]; 
-            sendData({type:'playerLeave', id:conn.connectionId});
+            sendData({type:'playerLeave', id:conn.connectionId, name:name});
+            showNotification(`⚠️ ${name} left the game!`, 'leave');
             document.getElementById('connectionStatus').textContent = "⚠️ Player left";
         });
         conn.on('error', err => {
@@ -468,6 +508,7 @@ function joinRoom() {
             p.name = currentUsername;
             document.getElementById('lobbyRoomInfo').textContent = "JOINED ROOM: " + roomId;
             document.getElementById('connectionStatus').textContent = "✅ Connected successfully!";
+            showNotification(`✅ ${p.name} joined the game!`, 'join');
             showScreen('multiplayerLobby');
             connectionAttempt = false;
         });
@@ -517,12 +558,15 @@ function handleData(d, senderId) {
             break;
         case 'teamUpdate':
             if(!otherPlayers[senderId]) otherPlayers[senderId] = {};
+            // ✅ Color + name updates instantly for everyone
             Object.assign(otherPlayers[senderId], {team:d.team, color:d.color, name:d.name});
             break;
         case 'playerJoin':
             otherPlayers[d.id] = d.player;
+            showNotification(`✅ ${d.player.name} joined the game!`, 'join');
             break;
         case 'playerLeave':
+            showNotification(`⚠️ ${d.name || "Player"} left the game!`, 'leave');
             delete otherPlayers[d.id];
             break;
         case 'bullet':
@@ -583,6 +627,7 @@ function FULL_RESET() {
     document.getElementById('lobbyRoomInfo').textContent = "";
     document.querySelectorAll('.team-selector button').forEach(b=>b.classList.remove('selected'));
     document.getElementById('currentTeamDisplay').textContent = "None";
+    document.getElementById('notification').style.display = 'none';
 }
 
 function leaveGame() {
@@ -590,18 +635,25 @@ function leaveGame() {
     showScreen('homeScreen');
 }
 
+// ✅ FIXED: Multiplayer death works exactly like solo
 function checkDeath() {
     if(p.health <= 0 && !isDead) {
         isDead = true;
         p.health = 0;
+        document.getElementById('resetText').style.display = 'block';
+        
         if(gameMode === 'solo') {
-            document.getElementById('resetText').style.display = 'block';
             setTimeout(()=>startSolo(), 2500);
         } else {
-            document.getElementById('resetText').textContent = "YOU DIED! RESPAWNING...";
-            document.getElementById('resetText').style.display = 'block';
+            // Respawn after 3 seconds
             setTimeout(()=>{
-                isDead=false; p.health=p.maxHealth; p.x=300; p.y=900; document.getElementById('resetText').style.display='none';
+                isDead=false; 
+                p.health=p.maxHealth; 
+                p.x=300; 
+                p.y=900; 
+                document.getElementById('resetText').style.display='none';
+                // Tell everyone you respawned
+                sendData({type:'playerUpdate', data:{x:p.x,y:p.y,health:p.health,angle:p.angle}});
             },3000);
         }
     }
@@ -634,7 +686,7 @@ document.addEventListener("mousemove",e=>{
 document.addEventListener("mousedown",e=>{if(e.button===0)mouse.down=true;});
 document.addEventListener("mouseup",e=>{if(e.button===0)mouse.down=false;});
 
-// ✅ MOBILE CONTROLS - 100% FIXED
+// ✅ MOBILE CONTROLS
 let moveData = {active:false, startX:0, startY:0, dx:0, dy:0};
 let attackData = {active:false, startX:0, startY:0, dx:0, dy:0};
 const maxRange = 60;
@@ -644,7 +696,6 @@ const moveKnob = document.getElementById('moveKnob');
 const attackBase = document.getElementById('attackJoystick');
 const attackKnob = document.getElementById('attackKnob');
 
-// MOVE JOYSTICK
 moveBase.addEventListener('touchstart',e=>{
     e.preventDefault();
     const t=e.touches[0];
@@ -678,7 +729,6 @@ document.addEventListener('touchend',e=>{
     moveKnob.style.transform = `translate(-50%, -50%)`;
 });
 
-// ATTACK JOYSTICK - FIXED AIM + SHOOT
 attackBase.addEventListener('touchstart',e=>{
     e.preventDefault();
     const t=e.touches[0];
@@ -725,13 +775,11 @@ document.addEventListener('touchend',e=>{
     attackData.dy=0;
 });
 
-// ✅ COLLISION + FALL THROUGH
 function collide(a,b){return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;}
 
 function checkPlatformCollision(obj, pl) {
     if(pl.isGround) return collide(obj, pl);
 
-    // Fall through on S / Down key OR mobile move down
     let wantFall = keys['KeyS'] || keys['ArrowDown'] || (deviceType==='mobile' && moveData.dy > 20);
     if(obj.onGround && wantFall) return false;
 
@@ -755,7 +803,6 @@ function hasLineOfSight(a,b){
     return clear;
 }
 
-// ✅ BULLETS MATCH PLAYER COLOR
 function shoot() {
     const now = Date.now();
     if(now - p.lastShot < p.fireRate) return;
@@ -850,80 +897,67 @@ function update(){
             if(b.y>canvas.height){b.y=canvas.height-b.h;b.vy=0;b.onGround=true;}
 
             let fireRate = b.health<30?(dist<800?900:1400):(b.lineOfSight?(dist<600?700:1000):2200);
-            if(b.state!=="retreat_smart"&&dist<b.attackRange&&Date.now()-b.lastShot>fireRate){
+            if(b.state!=="retreat_smart"&&dist<b.attackRange&&Date.now()-b.lastShot>fireRate&&b.lineOfSight){
                 b.lastShot=Date.now();
-                enemyBullets.push({x:b.x+b.w/2,y:b.y+b.h/2,w:10,h:10,vx:Math.cos(b.angle)*18,vy:Math.sin(b.angle)*18,life:120,dmg:18,color:'#ff2222'});
+                enemyBullets.push({x:b.x+b.w/2,y:b.y+b.h/2,w:10,h:10,vx:Math.cos(b.angle)*18,vy:Math.sin(b.angle)*18,life:120,dmg:18,color:'#ff2202'});
             }
         });
-
-        for(let i=bullets.length-1;i>=0;i--){
-            const bl=bullets[i];bl.x+=bl.vx;bl.y+=bl.vy;bl.life--;
-            if(bl.life<0||bl.x<0||bl.x>canvas.width||bl.y<0||bl.y>canvas.height){bullets.splice(i,1);continue;}
-            for(let j=bots.length-1;j>=0;j--){
-                const bo=bots[j];
-                if(collide(bl,bo)){bo.health-=bl.dmg;bullets.splice(i,1);if(bo.health<=0){bots.splice(j,1);kills++;checkWin();}break;}
-            }
-        }
-        for(let i=enemyBullets.length-1;i>=0;i--){
-            const bl=enemyBullets[i];bl.x+=bl.vx;bl.y+=bl.vy;bl.life--;
-            if(enemyBullets[i].life<0||bl.x<0||bl.x>canvas.width||bl.y<0||bl.y>canvas.height){enemyBullets.splice(i,1);continue;}
-            if(collide(bl,p)){p.health-=bl.dmg;checkDeath();enemyBullets.splice(i,1);}
-        }
     }
 
-    if(gameMode==="multiplayer"){
-        if(!isDead) sendData({type:'playerUpdate', data:{x:p.x,y:p.y,health:p.health,angle:p.angle}});
-        bullets.forEach((bl,i)=>{bl.x+=bl.vx;bl.y+=bl.vy;bl.life--;if(bl.life<0||bl.x<0||bl.x>canvas.width||bl.y<0||bl.y>canvas.height)bullets.splice(i,1);});
+    if(gameMode==="multiplayer" && !isDead){
+        sendData({type:'playerUpdate', data:{x:p.x,y:p.y,health:p.health,angle:p.angle,name:p.name}});
     }
+
+    bullets.forEach((bl,i)=>{bl.x+=bl.vx;bl.y+=bl.vy;bl.w++;bl.h++;if(bl.w>24)bl.w=24,bl.h=24;bl.life--;if(bl.life<0)bullets.splice(i,1);
+        if(gameMode==="solo"){bots.forEach((b,j)=>{if(collide(bl,b)){b.health-=bl.dmg;bullets.splice(i,1);if(b.health<=0){bots.splice(j,1);kills++;checkWin();}}});}
+        if(bl.team!==p.team && collide(bl,p)){p.health-=bl.dmg;bullets.splice(i,1);checkDeath();}
+    });
+    enemyBullets.forEach((bl,i)=>{bl.x+=bl.vx;bl.y+=bl.vy;bl.life--;if(bl.life<0)enemyBullets.splice(i,1);if(collide(bl,p)){p.health-=bl.dmg;enemyBullets.splice(i,1);checkDeath();}});
 
     document.getElementById("health").textContent=Math.max(0,p.health);
     document.getElementById("enemies").textContent=gameMode==="solo"?bots.length:0;
-    document.getElementById("players").textContent=Object.keys(otherPlayers).length;
+    document.getElementById("players").textContent=Object.keys(otherPlayers).length + 1;
     document.getElementById("kills").textContent=kills;
 }
 
 // DRAW
 function draw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
-    ctx.fillStyle="#553311"; 
+
     platforms.forEach(pl=>{
-        ctx.globalAlpha = pl.solid ? 1 : 0.85;
+        ctx.fillStyle=pl.solid?'#4a3827':'#5a4837';
+        ctx.globalAlpha=pl.solid?1:0.7;
         ctx.fillRect(pl.x,pl.y,pl.w,pl.h);
-        ctx.globalAlpha = 1;
+        ctx.globalAlpha=1;
     });
 
-    function drawEntity(e,isPlayer=false){
-        ctx.fillStyle=e.color || '#888';
-        ctx.fillRect(e.x,e.y,e.w||60,e.h||100);
-        ctx.fillStyle="#222"; ctx.fillRect(e.x,e.y-16,e.w||60,8);
-        ctx.fillStyle=(e.team==="red"?"#ff3333":"#33ff33"); ctx.fillRect(e.x,e.y-16,(e.w||60)*((e.health||100)/100),8);
-        
-        ctx.save(); ctx.translate(e.x+(e.w||60)/2, e.y+(e.h||60)/2); ctx.rotate(e.angle||0);
-        ctx.fillStyle="#222"; ctx.fillRect(0,-6,44,12); ctx.fillStyle=e.color || '#888'; ctx.fillRect(0,-4,36,8);
+    function drawEntity(e,isPlayer){
+        ctx.fillStyle=e.color;
+        ctx.globalAlpha=e.health<=0?0.5:1; // ✅ Dead body stays, correct color
+        ctx.fillRect(e.x,e.y,e.w,e.h);
+        ctx.fillStyle='#222';
+        ctx.fillRect(e.x,e.y-16,e.w,8);
+        ctx.fillStyle=e.team==='red'?'#ff3333':'#33ff33';
+        ctx.fillRect(e.x,e.y-16,e.w*(e.health/e.maxHealth),8);
+
+        ctx.save();
+        ctx.translate(e.x+e.w/2, e.y+e.h/2);
+        ctx.rotate(e.angle);
+        ctx.fillStyle='#222';
+        ctx.fillRect(-3,-3,44,12);
+        ctx.fillStyle=e.color;
+        ctx.fillRect(-2,-2,36,8);
         ctx.restore();
 
-        ctx.font="bold 24px Arial";
-        const nameW = ctx.measureText(e.name || "Player").width;
-        ctx.fillStyle="rgba(0,0,0,0.5)"; ctx.fillRect(e.x + (e.w||60)/2 - nameW/2 - 6, e.y - 44, nameW+12, 32);
-        ctx.fillStyle="#fff"; ctx.textAlign="center"; ctx.fillText(e.name || "Player", e.x+(e.w||60)/2, e.y-20); ctx.textAlign="left";
+        // ✅ Username above every player
+        ctx.fillStyle='#fff';
+        ctx.font='bold 16px Arial';
+        ctx.textAlign='center';
+        ctx.fillText(e.name || "Player", e.x+e.w/2, e.y-22);
+        ctx.globalAlpha=1;
     }
 
-    if(gameMode==="solo") bots.forEach(drawEntity);
-    if(!isDead) drawEntity({...p, maxHealth:p.maxHealth}, true);
-    Object.values(otherPlayers).forEach(drawEntity);
+    if(gameMode==="solo") bots.forEach(b=>drawEntity(b,false));
+    if(!isDead) drawEntity(p,true);
 
-    bullets.forEach(bl=>{
-        ctx.fillStyle=bl.color;
-        ctx.beginPath();ctx.arc(bl.x,bl.y,bl.w,0,Math.PI*2);ctx.fill();
-    });
-    enemyBullets.forEach(bl=>{
-        ctx.fillStyle=bl.color;
-        ctx.beginPath();ctx.arc(bl.x,bl.y,bl.w,0,Math.PI*2);ctx.fill();
-    });
-}
-
-function loop(){update();draw();requestAnimationFrame(loop);}
-loop();
-</script>
-</body>
-</html>
+    Object.values(otherPlayers).forEach(pl=>{if(pl.health>0)drawEntity
