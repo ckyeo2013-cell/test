@@ -1,10 +1,11 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Chaos Shooter 🎨 Enhanced Visuals</title>
+    <title>Chaos Shooter | Final Stable</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -16,14 +17,6 @@
                         dark: '#1A1A1A',
                         panel: 'rgba(20, 20, 20, 0.85)',
                         glass: 'rgba(255, 255, 255, 0.1)',
-                    },
-                    fontFamily: {
-                        game: ['"Press Start 2P"', 'monospace'],
-                    },
-                    boxShadow: {
-                        glow: '0 0 15px rgba(255, 204, 0, 0.5)',
-                        redGlow: '0 0 15px rgba(255, 51, 51, 0.5)',
-                        blueGlow: '0 0 15px rgba(51, 102, 255, 0.5)',
                     }
                 }
             }
@@ -31,676 +24,880 @@
     </script>
     <style type="text/tailwindcss">
         @layer utilities {
-            .content-auto { content-visibility: auto; }
             .text-shadow { text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
             .pixel { image-rendering: pixelated; image-rendering: crisp-edges; }
-            .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-            .scrollbar-hide::-webkit-scrollbar { display: none; }
         }
         @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
-        * { margin:0; padding:0; box-sizing:border-box; }
+        * { margin:0; padding:0; box-sizing:border-box; outline: none !important; border: none !important; }
         html, body { 
             @apply bg-dark h-screen w-screen overflow-hidden fixed touch-none select-none;
             font-family: 'Arial', sans-serif;
+            cursor: none !important;
         }
+
         .screen {
             @apply absolute inset-0 flex flex-col items-center justify-center transition-all duration-300 opacity-0 pointer-events-none z-[1000] px-4;
             background: radial-gradient(circle at center, #2a2a2a 0%, #111 100%);
         }
         .screen.active { @apply opacity-100 pointer-events-auto; }
 
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { @apply bg-dark/50; }
-        ::-webkit-scrollbar-thumb { @apply bg-primary/70 rounded-full; }
+        #gameContainer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100vw;
+            height: calc(100vw * 9 / 16);
+            max-height: 100vh;
+            max-width: calc(100vh * 16 / 9);
+            overflow: hidden;
+            background: linear-gradient(180deg, #87CEEB 0%, #E0F7FF 100%);
+        }
+
+        #gameCanvas { width:100%; height:100%; display:block; }
+
+        .ui { position:absolute; z-index:10000; pointer-events:none; user-select:none; }
+        .ui.interactive { pointer-events:auto; }
+
+        #crosshair {
+            position: fixed !important;
+            top: 0;
+            left: 0;
+            width: 28px;
+            height: 28px;
+            margin: -14px 0 0 -14px;
+            z-index: 99999 !important;
+            display: block !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+            pointer-events: none !important;
+            transition: none !important;
+        }
     </style>
 </head>
 <body class="text-white">
 
-<!-- DEVICE SCREEN -->
+<!-- DEVICE SELECTION -->
 <div id="deviceScreen" class="screen active">
     <div class="text-center mb-8">
-        <h1 class="text-[clamp(2.5rem,6vw,4rem)] font-game text-primary mb-4 text-shadow drop-shadow-glow">CHAOS SHOOTER</h1>
+        <h1 class="text-[clamp(2.5rem,6vw,4rem)] font-[Press Start 2P] text-primary mb-4 text-shadow">CHAOS SHOOTER</h1>
         <p class="text-lg text-white/80">How are you playing?</p>
     </div>
     <div class="flex flex-col gap-4 w-full max-w-xs">
-        <button onclick="setDevice('pc')" class="bg-primary text-black font-bold py-4 px-8 rounded-xl text-lg shadow-glow hover:scale-105 active:scale-95 transition-all">
+        <button onclick="setDevice('pc')" class="bg-primary text-black font-bold py-4 px-8 rounded-xl text-lg hover:scale-105 active:scale-95 transition-all">
             <i class="fa fa-desktop mr-2"></i> PC / LAPTOP
         </button>
-        <button onclick="setDevice('mobile')" class="bg-primary text-black font-bold py-4 px-8 rounded-xl text-lg shadow-glow hover:scale-105 active:scale-95 transition-all">
+        <button onclick="setDevice('mobile')" class="bg-primary text-black font-bold py-4 px-8 rounded-xl text-lg hover:scale-105 active:scale-95 transition-all">
             <i class="fa fa-mobile-phone mr-2"></i> MOBILE / TABLET
         </button>
     </div>
 </div>
 
-<!-- LOGIN / REGISTER -->
+<!-- LOGIN -->
 <div id="loginScreen" class="screen">
-    <div class="bg-panel backdrop-blur-lg rounded-2xl p-8 w-full max-w-md border border-glass shadow-2xl">
-        <h2 class="text-3xl font-bold text-center mb-6 text-primary" id="loginTitle">ACCOUNT</h2>
-        <input type="text" id="user" placeholder="👤 Username (3-12 chars)" maxlength="12" 
-               class="w-full bg-glass border border-glass rounded-lg px-4 py-3 mb-3 focus:outline-none focus:border-primary transition-all">
-        <input type="password" id="pass" placeholder="🔒 Password (min 4 chars)" maxlength="20" 
-               class="w-full bg-glass border border-glass rounded-lg px-4 py-3 mb-3 focus:outline-none focus:border-primary transition-all">
+    <div class="bg-panel backdrop-blur-lg rounded-2xl p-8 w-full max-w-md">
+        <h2 class="text-3xl font-bold text-center mb-6 text-primary" id="loginTitle">LOGIN</h2>
+        <input type="text" id="user" placeholder="👤 Username" maxlength="12" class="w-full bg-glass rounded-lg px-4 py-3 mb-3">
+        <input type="password" id="pass" placeholder="🔒 Password" maxlength="20" class="w-full bg-glass rounded-lg px-4 py-3 mb-3">
         <div class="text-red-400 text-sm h-6 text-center" id="errorText"></div>
-        <button onclick="handleLoginRegister()" class="w-full bg-primary text-black font-bold py-3 rounded-lg mb-3 hover:shadow-glow transition-all">CONTINUE</button>
-        <button class="w-full bg-white/10 hover:bg-white/20 py-2 rounded-lg text-sm transition-all" onclick="toggleMode()" id="modeBtn">Switch to Register</button>
+        <button onclick="handleLogin()" class="w-full bg-primary text-black font-bold py-3 rounded-lg mb-3 hover:shadow-lg transition-all">CONTINUE</button>
+        <button onclick="toggleMode()" class="w-full bg-white/10 hover:bg-white/20 py-2 rounded-lg text-sm transition-all">Switch to Register</button>
     </div>
 </div>
 
 <!-- MAIN MENU -->
 <div id="homeScreen" class="screen">
-    <div class="text-center mb-10">
-        <h1 class="text-[clamp(3rem,8vw,5rem)] font-game text-primary mb-4 text-shadow drop-shadow-glow">CHAOS SHOOTER</h1>
+    <div class="text-center mb-6">
+        <h1 class="text-[clamp(3rem,8vw,5rem)] font-[Press Start 2P] text-primary mb-4 text-shadow">CHAOS SHOOTER</h1>
         <p class="text-xl text-white/70">Ultimate 2D Battle Arena</p>
+        <p class="text-sm text-white/60 mt-2">Logged in as: <span class="text-primary font-bold" id="currentUserDisplay"></span></p>
     </div>
     <div class="flex flex-col gap-4 w-full max-w-xs">
-        <button onclick="startSolo()" class="bg-green-500 hover:bg-green-400 text-white font-bold py-4 px-8 rounded-xl text-lg shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all">
+        <button onclick="startSolo()" class="bg-green-500 hover:bg-green-400 text-white font-bold py-4 px-8 rounded-xl text-lg shadow-lg hover:scale-105 active:scale-95 transition-all">
             <i class="fa fa-user mr-2"></i> SOLO MODE
         </button>
-        <button onclick="showScreen('multiplayerLobby')" class="bg-blue-500 hover:bg-blue-400 text-white font-bold py-4 px-8 rounded-xl text-lg shadow-lg hover:shadow-xl hover:scale-105 active:scale-95 transition-all">
+        <button onclick="goMultiplayer()" class="bg-blue-500 hover:bg-blue-400 text-white font-bold py-4 px-8 rounded-xl text-lg shadow-lg hover:scale-105 active:scale-95 transition-all">
             <i class="fa fa-users mr-2"></i> MULTIPLAYER
+        </button>
+        <button onclick="switchAccount()" class="bg-gray-500 hover:bg-gray-400 text-white font-bold py-3 px-6 rounded-lg text-base shadow-lg hover:scale-105 active:scale-95 transition-all">
+            <i class="fa fa-exchange mr-2"></i> SWITCH ACCOUNT
         </button>
     </div>
 </div>
 
 <!-- MULTIPLAYER LOBBY -->
 <div id="multiplayerLobby" class="screen">
-    <div class="bg-panel backdrop-blur-lg rounded-2xl p-8 w-full max-w-lg border border-glass shadow-2xl">
+    <div class="bg-panel backdrop-blur-lg rounded-2xl p-8 w-full max-w-lg">
         <h2 class="text-3xl font-bold text-center mb-4 text-blue-400">MULTIPLAYER LOBBY</h2>
-        <div id="lobbyRoomInfo" class="text-center text-xl font-mono text-green-400 mb-2"></div>
-        <div id="connectionStatus" class="text-center text-sm h-6 mb-4 text-green-300"></div>
+        <div id="roomInfo" class="text-center text-xl font-mono text-green-400 mb-2"></div>
+        <div id="status" class="text-center text-sm h-6 mb-4 text-green-300"></div>
         
-        <div class="flex justify-center gap-4 mb-6">
-            <button class="team-btn team-red bg-redTeam/80 hover:bg-redTeam py-3 px-6 rounded-lg font-bold shadow-redGlow transition-all border-2 border-transparent" id="btnRed" onclick="selectTeam('red')">🔴 RED TEAM</button>
-            <button class="team-btn team-blue bg-blueTeam/80 hover:bg-blueTeam py-3 px-6 rounded-lg font-bold shadow-blueGlow transition-all border-2 border-transparent" id="btnBlue" onclick="selectTeam('blue')">🔵 BLUE TEAM</button>
-            <button class="team-btn team-none bg-gray-600/80 hover:bg-gray-500 py-3 px-6 rounded-lg transition-all border-2 border-transparent" id="btnNone" onclick="selectTeam('none')">👁️ SPECTATE</button>
+        <div class="mb-5">
+            <p class="text-center text-sm mb-2">First to how many wins?</p>
+            <div class="flex justify-center gap-2">
+                <button onclick="setRounds(3)" class="round-btn bg-glass hover:bg-glass/60 py-2 px-4 rounded">3</button>
+                <button onclick="setRounds(5)" class="round-btn bg-glass hover:bg-glass/60 py-2 px-4 rounded">5</button>
+                <button onclick="setRounds(7)" class="round-btn bg-glass hover:bg-glass/60 py-2 px-4 rounded">7</button>
+                <button onclick="setRounds(10)" class="round-btn bg-glass hover:bg-glass/60 py-2 px-4 rounded">10</button>
+            </div>
+            <p class="text-center text-xs mt-1">Current: <span id="roundLimitText">3</span> rounds</p>
         </div>
 
-        <p class="text-center mb-6">Your Team: <span id="currentTeamDisplay" class="font-bold text-primary">None</span></p>
+        <div class="flex justify-center gap-4 mb-6">
+            <button onclick="selectTeam('red')" class="team-btn bg-redTeam/80 hover:bg-redTeam py-3 px-6 rounded-lg font-bold">🔴 RED TEAM</button>
+            <button onclick="selectTeam('blue')" class="team-btn bg-blueTeam/80 hover:bg-blueTeam py-3 px-6 rounded-lg font-bold">🔵 BLUE TEAM</button>
+        </div>
+
+        <div id="powerupChoice" class="hidden mb-5 p-3 bg-yellow-500/20 rounded-lg text-center">
+            <p class="text-sm mb-2">You lost! Choose team power-up:</p>
+            <div class="flex gap-2 flex-wrap justify-center">
+                <button onclick="choosePowerup('speed')" class="bg-glass hover:bg-glass/60 px-3 py-1 rounded text-sm">⚡ Speed Boost</button>
+                <button onclick="choosePowerup('damage')" class="bg-glass hover:bg-glass/60 px-3 py-1 rounded text-sm">💥 Extra Damage</button>
+                <button onclick="choosePowerup('health')" class="bg-glass hover:bg-glass/60 px-3 py-1 rounded text-sm">❤️ Extra Health</button>
+                <button onclick="choosePowerup('fire')" class="bg-glass hover:bg-glass/60 px-3 py-1 rounded text-sm">🔥 Faster Fire</button>
+            </div>
+        </div>
 
         <div class="flex flex-col gap-3 mb-4">
-            <button id="createBtn" onclick="createRoom()" class="bg-green-500 hover:bg-green-400 py-3 rounded-lg font-bold transition-all">✨ CREATE NEW ROOM</button>
+            <button onclick="createRoom()" class="bg-green-500 hover:bg-green-400 py-3 rounded-lg font-bold transition-all">✨ CREATE NEW ROOM</button>
             <div class="flex gap-2">
-                <input type="text" id="joinCodeInput" placeholder="ENTER 4-LETTER CODE" maxlength="4" class="flex-1 bg-glass border border-glass rounded-lg px-4 py-3 text-center font-mono uppercase">
+                <input type="text" id="joinCode" placeholder="4-LETTER CODE" maxlength="4" class="flex-1 bg-glass rounded-lg px-4 py-3 text-center uppercase">
                 <button onclick="joinRoom()" class="bg-blue-500 hover:bg-blue-400 px-6 rounded-lg transition-all">JOIN</button>
             </div>
         </div>
+
         <div class="flex justify-between">
-            <button class="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg text-sm transition-all" onclick="showScreen('homeScreen')">← BACK</button>
-            <button class="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 rounded-lg text-sm font-bold shadow-glow transition-all" id="startGameBtn" onclick="startMultiplayerGame()" style="display:none;">🚀 START GAME</button>
+            <button onclick="goHome()" class="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-lg text-sm transition-all">← BACK</button>
+            <button id="startGameBtn" onclick="startMultiplayer()" class="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 rounded-lg text-sm font-bold shadow-lg transition-all" style="display:none;">🚀 START GAME</button>
         </div>
     </div>
 </div>
 
-<!-- GAME UI -->
-<div id="userInfoBar" class="absolute top-3 left-3 bg-panel backdrop-blur-md px-3 py-1.5 rounded-lg z-[500] border border-glass shadow-lg text-sm font-medium"></div>
+<!-- GAME -->
+<div id="gameContainer" style="display:none;">
+    <canvas id="gameCanvas" width="1920" height="1080"></canvas>
 
-<div id="ui" class="absolute top-3 left-1/2 -translate-x-1/2 bg-panel backdrop-blur-md px-4 py-2 rounded-lg z-[500] border border-glass shadow-lg flex gap-6 text-sm">
-    <div class="flex items-center gap-1"><span class="text-red-400 text-lg">❤️</span> <span id="health" class="font-bold">100</span></div>
-    <div class="flex items-center gap-1"><span class="text-yellow-400 text-lg">👹</span> <span id="enemies" class="font-bold">0</span></div>
-    <div class="flex items-center gap-1"><span class="text-blue-400 text-lg">👥</span> <span id="players" class="font-bold">0</span></div>
-    <div class="flex items-center gap-1"><span class="text-green-400 text-lg">🔫</span> <span id="kills" class="font-bold">0</span></div>
-    <div class="flex items-center gap-1"><span class="text-purple-400 text-lg">🎖️</span> <span id="teamText" class="font-bold">-</span></div>
-</div>
-
-<div id="roomCode" class="absolute top-3 right-3 bg-panel backdrop-blur-md px-3 py-1.5 rounded-lg z-[500] border border-glass shadow-lg text-sm font-mono font-bold text-green-400">ROOM: <span id="codeText">---</span></div>
-
-<button id="leaveBtn" class="absolute bottom-4 left-1/2 -translate-x-1/2 bg-red-500/90 hover:bg-red-500 px-4 py-2 rounded-lg z-[700] shadow-lg transition-all text-sm font-medium" style="display:none;">🚪 LEAVE GAME</button>
-
-<div id="resetText" class="absolute top-1/2 left-1/2 -translate-x-1/2 bg-red-500/90 backdrop-blur-md px-8 py-4 rounded-xl z-[800] shadow-2xl text-center text-xl font-bold" style="display:none;">💀 YOU DIED! <br><span class="text-base font-normal">Respawning in 3s...</span></div>
-
-<div id="winText" class="absolute top-1/2 left-1/2 -translate-x-1/2 bg-green-500/90 backdrop-blur-md px-10 py-6 rounded-xl z-[800] shadow-2xl text-center" style="display:none;">
-    <h3 class="text-3xl font-bold mb-3">🎉 LEVEL COMPLETE!</h3>
-    <div class="flex gap-3 justify-center">
-        <button onclick="startSolo()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition-all">PLAY AGAIN</button>
-        <button onclick="showScreen('homeScreen')" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition-all">MENU</button>
+    <div class="ui top-3 left-3 bg-panel backdrop-blur-md px-3 py-1.5 rounded-lg text-sm font-medium">
+        👤 <span id="playerNameDisplay">Player</span> | 🔴 <span id="redScore">0</span> : <span id="blueScore">0</span> 🔵
     </div>
-</div>
 
-<div id="crosshair" class="absolute w-6 h-6 pointer-events-none z-[600] -translate-x-1/2 -translate-y-1/2" style="display:none;">
-    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="12" cy="12" r="10" stroke="white" stroke-width="2"/>
-        <line x1="12" y1="2" x2="12" y2="8" stroke="white" stroke-width="2"/>
-        <line x1="12" y1="16" x2="12" y2="22" stroke="white" stroke-width="2"/>
-        <line x1="2" y1="12" x2="8" y2="12" stroke="white" stroke-width="2"/>
-        <line x1="16" y1="12" x2="22" y2="12" stroke="white" stroke-width="2"/>
-    </svg>
-</div>
-
-<!-- MAIN CANVAS WITH BACKGROUND -->
-<div class="absolute top-1/2 left-1/2 -translate-x-1/2 w-[100vw] h-[calc(100vw*9/16)] max-h-[100vh] max-w-[calc(100vh*16/9)] overflow-hidden">
-    <div class="absolute inset-0 bg-[url('https://picsum.photos/id/1015/1920/1080')] bg-cover bg-center opacity-30"></div>
-    <canvas id="c" width="1920" height="1080" class="absolute inset-0 pixel"></canvas>
-    <!-- PARTICLE EFFECTS LAYER -->
-    <canvas id="particles" width="1920" height="1080" class="absolute inset-0 pointer-events-none"></canvas>
-</div>
-
-<!-- NOTIFICATION -->
-<div id="notification" class="absolute top-16 left-1/2 -translate-x-1/2 px-6 py-3 rounded-lg z-[900] font-bold text-lg shadow-2xl backdrop-blur-md transition-all duration-300 opacity-0"></div>
-
-<!-- MOBILE CONTROLS -->
-<div id="touchControls" class="absolute bottom-10 left-0 right-0 flex justify-between px-10 z-[600] pointer-events-none" style="display:none;">
-    <div class="joystick-base w-36 h-36 rounded-full bg-white/10 backdrop-blur-sm border-2 border-white/20 relative pointer-events-auto shadow-xl">
-        <div class="joystick-knob w-12 h-12 rounded-full bg-white/80 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 shadow-lg"></div>
+    <div class="ui top-3 left-1/2 -translate-x-1/2 bg-panel backdrop-blur-md px-4 py-2 rounded-lg flex gap-6 text-sm">
+        <div>❤️ <span id="uiHealth">100</span></div>
+        <div>🔫 <span id="uiKills">0</span></div>
     </div>
-    <div class="joystick-base w-36 h-36 rounded-full bg-red-500/10 backdrop-blur-sm border-2 border-red-400/20 relative pointer-events-auto shadow-xl">
-        <div class="joystick-knob w-12 h-12 rounded-full bg-red-400/80 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 shadow-lg"></div>
+
+    <button onclick="leaveGame()" class="ui interactive bottom-4 left-1/2 -translate-x-1/2 bg-red-500/90 hover:bg-red-500 px-4 py-2 rounded-lg shadow-lg font-medium transition-all">
+        🚪 LEAVE GAME
+    </button>
+
+    <div id="deathScreen" class="ui top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-red-500/90 backdrop-blur-md px-8 py-4 rounded-xl shadow-2xl text-center text-xl font-bold" style="display:none;">
+        💀 YOU DIED! <br><span class="text-base font-normal">Respawning...</span>
+    </div>
+
+    <div id="winScreen" class="ui top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-green-500/90 backdrop-blur-md px-10 py-6 rounded-xl shadow-2xl text-center" style="display:none;">
+        <h3 class="text-3xl font-bold mb-3">🎉 <span id="winnerText"></span> WINS ROUND!</h3>
+        <div id="matchEndText" class="hidden mb-3 text-xl font-bold"></div>
+        <div class="flex gap-3 justify-center">
+            <button onclick="nextRound()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition-all cursor-pointer">NEXT ROUND</button>
+            <button onclick="goHome()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition-all cursor-pointer">MENU</button>
+        </div>
+    </div>
+
+    <div id="crosshair">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="14" cy="14" r="11" stroke="#ffffff" stroke-width="2.5"/>
+            <line x1="14" y1="2" x2="14" y2="9" stroke="#ffffff" stroke-width="2.5"/>
+            <line x1="14" y1="19" x2="14" y2="26" stroke="#ffffff" stroke-width="2.5"/>
+            <line x1="2" y1="14" x2="9" y2="14" stroke="#ffffff" stroke-width="2.5"/>
+            <line x1="19" y1="14" x2="26" y2="14" stroke="#ffffff" stroke-width="2.5"/>
+        </svg>
+    </div>
+
+    <div id="mobileControls" class="ui bottom-10 left-0 right-0 flex justify-between px-10 pointer-events-none" style="display:none;">
+        <div class="w-36 h-36 rounded-full bg-white/10 backdrop-blur-sm relative pointer-events-auto shadow-xl" id="moveStick">
+            <div class="w-12 h-12 rounded-full bg-white/80 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 shadow-lg"></div>
+        </div>
+        <div class="w-36 h-36 rounded-full bg-red-500/10 backdrop-blur-sm relative pointer-events-auto shadow-xl" id="shootStick">
+            <div class="w-12 h-12 rounded-full bg-red-400/80 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 shadow-lg"></div>
+        </div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
 <script>
-// ✅ SAVED DATA
+// --------------------------
+// CORE SYSTEM
+// --------------------------
 let deviceType = localStorage.getItem('deviceType') || "";
 let loggedIn = localStorage.getItem('loggedIn') === 'true';
-let currentUsername = localStorage.getItem('currentUsername') || "";
-let isRegisterMode = false;
+let currentUser = localStorage.getItem('currentUser') || "";
+let isRegister = false;
 
-// ✅ AUTO LOGIN CHECK ON LOAD
+// Multiplayer Settings
+let roundLimit = 3;
+let redScore = 0;
+let blueScore = 0;
+let activePowerups = { red: null, blue: null };
+let peer, roomId, connections = {};
+let isHost = false;
+let players = {};
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let mouse = {x:0, y:0, down:false, canvasX:0, canvasY:0};
+let hasWon = false; // ✅ Prevent infinite win triggers
+
 window.onload = () => {
-    if(deviceType) setDevice(deviceType, true);
-    if(loggedIn && currentUsername) {
-        document.getElementById('userInfoBar').textContent = "👤 " + currentUsername;
-        document.getElementById('loginScreen').classList.remove('active');
-        document.getElementById('homeScreen').classList.add('active');
-        const savedRoom = localStorage.getItem('lastRoom');
-        if(savedRoom) { roomId = savedRoom; joinRoom(true); }
+    if(deviceType) {
+        setDevice(deviceType, true);
+        if(loggedIn && currentUser) {
+            document.getElementById('playerNameDisplay').textContent = currentUser;
+            document.getElementById('currentUserDisplay').textContent = currentUser;
+            switchScreen('homeScreen');
+        } else {
+            switchScreen('loginScreen');
+        }
     }
-    // Initialize particles
-    initParticles();
 };
 
-function getAccounts() { return JSON.parse(localStorage.getItem('gameAccounts') || '{}'); }
-function saveAccount(user, pass) { let acc = getAccounts(); acc[user] = pass; localStorage.setItem('gameAccounts', JSON.stringify(acc)); }
+function switchScreen(id) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    if(id) document.getElementById(id).classList.add('active');
+}
 
-function setDevice(type, skip = false) {
+function setDevice(type, skip=false) {
     deviceType = type;
     localStorage.setItem('deviceType', type);
-    if(!skip) document.getElementById('deviceScreen').classList.remove('active');
-    if (type === 'mobile') {
-        document.getElementById('touchControls').style.display = 'flex';
-        document.body.style.cursor = 'none';
-    } else {
-        document.body.style.cursor = 'default';
+    if(!skip) switchScreen('loginScreen');
+    if(type === 'mobile') {
+        document.getElementById('mobileControls').style.display = 'flex';
     }
-    if(!loggedIn) document.getElementById('loginScreen').classList.add('active');
+}
+
+function goHome() { 
+    document.getElementById('gameContainer').style.display = 'none';
+    document.getElementById('winScreen').style.display = 'none';
+    document.getElementById('deathScreen').style.display = 'none';
+    document.getElementById('powerupChoice').classList.add('hidden');
+    hasWon = false; // ✅ Reset win state
+    switchScreen('homeScreen'); 
+}
+function goMultiplayer() { switchScreen('multiplayerLobby'); }
+
+function switchAccount() {
+    loggedIn = false;
+    currentUser = "";
+    localStorage.removeItem('loggedIn');
+    localStorage.removeItem('currentUser');
+    switchScreen('loginScreen');
+}
+
+// --------------------------
+// LOGIN
+// --------------------------
+function getAccounts() { 
+    let data = localStorage.getItem('accounts');
+    return data ? JSON.parse(data) : {}; 
+}
+function saveAccount(u,p) { 
+    let a = getAccounts(); 
+    a[u] = p; 
+    localStorage.setItem('accounts', JSON.stringify(a)); 
 }
 
 function toggleMode() {
-    isRegisterMode = !isRegisterMode;
-    document.getElementById('loginTitle').textContent = isRegisterMode ? "CREATE ACCOUNT" : "LOGIN";
-    document.getElementById('modeBtn').textContent = isRegisterMode ? "Switch to Login" : "Switch to Register";
+    isRegister = !isRegister;
+    document.getElementById('loginTitle').textContent = isRegister ? "CREATE ACCOUNT" : "LOGIN";
+    event.target.textContent = isRegister ? "Switch to Login" : "Switch to Register";
     document.getElementById('errorText').textContent = "";
 }
 
-function handleLoginRegister() {
-    const user = document.getElementById('user').value.trim();
-    const pass = document.getElementById('pass').value.trim();
+function handleLogin() {
+    const u = document.getElementById('user').value.trim();
+    const p = document.getElementById('pass').value.trim();
     const err = document.getElementById('errorText');
-    const accounts = getAccounts();
+    const acc = getAccounts();
 
-    if(!user || !pass) return err.textContent = "❌ Fill in all fields!";
-    if(user.length < 3 || user.length > 12) return err.textContent = "❌ Username: 3-12 chars";
-    if(pass.length < 4) return err.textContent = "❌ Password: min 4 chars";
+    if(!u || !p) return err.textContent = "❌ Fill all fields";
+    if(u.length < 3 || u.length > 12) return err.textContent = "❌ Username 3-12 chars";
+    if(p.length < 4) return err.textContent = "❌ Password min 4 chars";
 
-    if(isRegisterMode) {
-        if(accounts[user]) return err.textContent = "❌ Username taken!";
-        saveAccount(user, pass);
-        loggedIn = true; currentUsername = user;
-        localStorage.setItem('loggedIn', 'true'); localStorage.setItem('currentUsername', user);
-        document.getElementById('userInfoBar').textContent = "👤 " + currentUsername;
-        document.getElementById('loginScreen').classList.remove('active');
-        document.getElementById('homeScreen').classList.add('active');
+    if(isRegister) {
+        if(acc[u]) return err.textContent = "❌ Username taken";
+        saveAccount(u, p);
+        loggedIn = true; 
+        currentUser = u;
+        localStorage.setItem('loggedIn', 'true'); 
+        localStorage.setItem('currentUser', u);
+        document.getElementById('playerNameDisplay').textContent = currentUser;
+        document.getElementById('currentUserDisplay').textContent = currentUser;
+        switchScreen('homeScreen');
     } else {
-        if(!accounts[user]) return err.textContent = "❌ Account not found!";
-        if(accounts[user] !== pass) return err.textContent = "❌ Wrong password!";
-        loggedIn = true; currentUsername = user;
-        localStorage.setItem('loggedIn', 'true'); localStorage.setItem('currentUsername', user);
-        document.getElementById('userInfoBar').textContent = "👤 " + currentUsername;
-        document.getElementById('loginScreen').classList.remove('active');
-        document.getElementById('homeScreen').classList.add('active');
+        if(!acc[u]) return err.textContent = "❌ Username not found";
+        if(acc[u] !== p) return err.textContent = "❌ Wrong password";
+        
+        loggedIn = true; 
+        currentUser = u;
+        localStorage.setItem('loggedIn', 'true'); 
+        localStorage.setItem('currentUser', u);
+        document.getElementById('playerNameDisplay').textContent = currentUser;
+        document.getElementById('currentUserDisplay').textContent = currentUser;
+        switchScreen('homeScreen');
     }
 }
 
-function showScreen(id) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    if(id) document.getElementById(id).classList.add('active');
-    document.body.style.cursor = 'default';
-    document.getElementById('crosshair').style.display = 'none';
-    document.getElementById('connectionStatus').textContent = "";
-    document.querySelectorAll('.team-btn').forEach(b=>b.classList.remove('border-white','shadow-md'));
+// --------------------------
+// MULTIPLAYER SETTINGS
+// --------------------------
+function setRounds(num) {
+    roundLimit = num;
+    document.getElementById('roundLimitText').textContent = num;
+    document.querySelectorAll('.round-btn').forEach(b=>b.classList.remove('bg-white/20'));
+    event.target.classList.add('bg-white/20');
 }
 
-// ✅ VISUAL ENHANCEMENT: PARTICLES
-const pCanvas = document.getElementById('particles');
-const pCtx = pCanvas.getContext('2d');
-let particles = [];
-function initParticles() {
-    for(let i=0; i<80; i++) particles.push({
-        x: Math.random()*1920, y: Math.random()*1080, 
-        size: Math.random()*3+1, speedX: (Math.random()-0.5)*0.8, speedY: (Math.random()-0.5)*0.8,
-        color: ['#ffcc00','#ff3333','#3366ff','#ffffff'][Math.floor(Math.random()*4)]
-    });
-}
-function updateParticles() {
-    pCtx.clearRect(0,0,1920,1080);
-    particles.forEach(p=>{
-        p.x += p.speedX; p.y += p.speedY;
-        if(p.x<0||p.x>1920) p.speedX*=-1;
-        if(p.y<0||p.y>1080) p.speedY*=-1;
-        pCtx.beginPath(); pCtx.arc(p.x,p.y,p.size,0,Math.PI*2);
-        pCtx.fillStyle = p.color; pCtx.globalAlpha = 0.6; pCtx.fill();
-    });
+function choosePowerup(type) {
+    const loserTeam = redScore > blueScore ? 'blue' : 'red';
+    activePowerups[loserTeam] = type;
+    document.getElementById('powerupChoice').classList.add('hidden');
+    broadcast({type:'powerup', team:loserTeam, power:type});
 }
 
-// GAME SETUP
-const canvas = document.getElementById('c');
-const ctx = canvas.getContext('2d');
+// --------------------------
+// GAME ENGINE ✅ NO MORE BREAKS
+// --------------------------
 let running = false;
-let gameMode = "";
 let keys = {};
-let mouse = {x:canvas.width/2, y:canvas.height/2, down:false};
 let kills = 0;
 let isDead = false;
 
-// PLAYER WITH VISUAL STATS
-let p = {
-    x:300,y:900,w:60,h:100,
-    vx:0,vy:0,
-    speed:1.2, maxSpeed:10, friction:0.92, 
-    jump:-22, gravity:0.85,    
-    onGround:false,health:100, maxHealth:100,
-    angle:0,lastShot:0,fireRate:600,bulletSpeed:24,id:Math.random().toString(36).substr(2,6),
-    team: "none", color: "#0099ff", name: "",
-    trail: [] // ✅ Visual trail
+let player = {
+    x: 300, y: 900, w: 60, h: 100,
+    vx: 0, vy: 0, 
+    speed: 1.1,          
+    friction: 0.94,
+    jump: -11,           
+    gravity: 0.48,
+    onGround: false, 
+    health: 100, 
+    maxHealth: 100,
+    angle: 0, 
+    lastShot: 0, 
+    fireRate: 450,
+    bulletSpeed: 18,
+    color: "#0099ff",
+    name: currentUser || "Player",
+    team: null
 };
 
-// BOTS WITH BETTER DESIGN
-let bots = [];
-function resetBots() {
-    bots = [
-        {x:1600, y:900, w:60, h:100, health:100, maxHealth:100, 
-         baseSpeed:2.2, speed:2.2, maxSpeed:14, 
-         dir:-1, color:"#FF2200", vy:0, lastShot:0, onGround:false, 
-         state:"patrol", detectRange:1400, attackRange:900, 
-         lastDodge:0, lastMoveChange:0, flankSide:1, lineOfSight:true, angle:0,
-         name: "SOLDIER 🔴", trail: []},
-        {x:100, y:700, w:60, h:100, health:100, maxHealth:100, 
-         baseSpeed:2.2, speed:2.2, maxSpeed:14,
-         dir:1, color:"#FF4400", vy:0, lastShot:0, onGround:false, 
-         state:"patrol", detectRange:1400, attackRange:900, 
-         lastDodge:0, lastMoveChange:0, flankSide:-1, lineOfSight:true, angle:0,
-         name: "ELITE 🟠", trail: []},
-        {x:1700, y:440, w:60, h:100, health:100, maxHealth:100, 
-         baseSpeed:2.2, speed:2.2, maxSpeed:14,
-         dir:-1, color:"#FF6600", vy:0, lastShot:0, onGround:false, 
-         state:"patrol", detectRange:1400, attackRange:900, 
-         lastDodge:0, lastMoveChange:0, flankSide:1, lineOfSight:true, angle:0,
-         name: "COMMANDER 🟡", trail: []}
+let enemies = [];
+function resetEnemies() {
+    enemies = [
+        {
+            x:1600, y:900, w:60, h:100, 
+            health:100, maxHealth:100, 
+            speed: 1.1,      
+            dir:-1, color:"#FF2200", 
+            vy:0, lastShot:0, 
+            state:"combat", targetPos:{x:0,y:0}, jumpTimer:0, shotTimer:0, strafeDir:1,
+            minDistance:550, maxDistance:800,
+            accuracy:0.88, fireRate:900,
+            onGround:false, name:"Soldier 1", gravity:0.48, jump:-11
+        },
+        {
+            x:100, y:700, w:60, h:100, 
+            health:100, maxHealth:100, 
+            speed: 1.1,      
+            dir:1, color:"#FF4400", 
+            vy:0, lastShot:0, 
+            state:"combat", targetPos:{x:0,y:0}, jumpTimer:0, shotTimer:0, strafeDir:-1,
+            minDistance:500, maxDistance:750, 
+            accuracy:0.92, fireRate:750, 
+            onGround:false, name:"Soldier 2", gravity:0.48, jump:-11
+        },
+        {
+            x:1700, y:440, w:60, h:100, 
+            health:100, maxHealth:100, 
+            speed: 1.1,      
+            dir:-1, color:"#FF6600", 
+            vy:0, lastShot:0, 
+            state:"combat", targetPos:{x:0,y:0}, jumpTimer:0, shotTimer:0, strafeDir:1,
+            minDistance:450, maxDistance:700, 
+            accuracy:0.96, fireRate:600, 
+            onGround:false, name:"Elite", gravity:0.48, jump:-11
+        }
     ];
 }
 
-// PLATFORMS WITH TEXTURE & SHADOW
 const platforms = [
-    {x:0,y:1000,w:1920,h:80, solid:true, isGround:true, color:'#4A3827', shade:'#3A2817'},
-    {x:400,y:840,w:300,h:40, solid:false, isGround:false, color:'#5A4837', shade:'#4A3827'},
-    {x:900,y:700,w:300,h:40, solid:false, isGround:false, color:'#5A4837', shade:'#4A3827'},
-    {x:1400,y:540,w:300,h:40, solid:false, isGround:false, color:'#5A4837', shade:'#4A3827'},
-    {x:300,y:380,w:300,h:40, solid:false, isGround:false, color:'#5A4837', shade:'#4A3827'},
-    {x:1200,y:300,w:300,h:40, solid:false, isGround:false, color:'#5A4837', shade:'#4A3827'}
+    {x:0,y:1000,w:1920,h:80, solid:true, color:'#503820'},
+    {x:400,y:840,w:300,h:40, solid:false, color:'#5A4028'},
+    {x:900,y:700,w:300,h:40, solid:false, color:'#5A4028'},
+    {x:1400,y:540,w:300,h:40, solid:false, color:'#5A4028'},
+    {x:300,y:380,w:300,h:40, solid:false, color:'#5A4028'},
+    {x:1200,y:300,w:300,h:40, solid:false, color:'#5A4028'}
 ];
 
 let bullets = [];
 let enemyBullets = [];
 
-// ✅ MULTIPLAYER
-let peer, roomId, connections = {}, otherPlayers = {};
-let isHost = false;
-let connectionAttempt = false;
-
-function showNotification(text, type) {
-    const n = document.getElementById('notification');
-    n.textContent = text;
-    n.className = '';
-    n.style.opacity = '1';
-    n.style.transform = 'translateX(-50%) translateY(0)';
-    if(type === 'join') n.classList.add('bg-green-500/80','border','border-green-300','text-white');
-    if(type === 'leave') n.classList.add('bg-red-500/80','border','border-red-300','text-white');
-    if(type === 'kill') n.classList.add('bg-yellow-500/80','border','border-yellow-300','text-black');
-    n.style.display = 'block';
-    setTimeout(()=>{
-        n.style.opacity = '0';
-        n.style.transform = 'translateX(-50%) translateY(-10px)';
-    }, 3000);
+function rectCollide(a,b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
-// ✅ TEAM SYSTEM WITH VISUAL FEEDBACK
-function selectTeam(team) {
-    p.team = team;
-    if(team === 'red') p.color = '#ff3333';
-    else if(team === 'blue') p.color = '#3366ff';
-    else p.color = '#0099ff';
+function updatePhysics(obj) {
+    obj.onGround = false;
+    obj.vy += obj.gravity;
+    obj.vx *= obj.friction || 0.94;
+    obj.x += obj.vx;
+    obj.y += obj.vy;
 
-    document.querySelectorAll('.team-btn').forEach(b=>b.classList.remove('border-white','shadow-md'));
-    if(team === 'red') { document.getElementById('btnRed').classList.add('border-white','shadow-md'); document.getElementById('teamText').className = 'font-bold text-redTeam'; }
-    if(team === 'blue') { document.getElementById('btnBlue').classList.add('border-white','shadow-md'); document.getElementById('teamText').className = 'font-bold text-blueTeam'; }
-    if(team === 'none') { document.getElementById('btnNone').classList.add('border-white','shadow-md'); document.getElementById('teamText').className = 'font-bold text-blue-300'; }
-    
-    document.getElementById('currentTeamDisplay').textContent = team.toUpperCase();
-    document.getElementById('currentTeamDisplay').className = 'font-bold '+(team==='red'?'text-redTeam':team==='blue'?'text-blueTeam':'text-primary');
-    document.getElementById('teamText').textContent = team.toUpperCase();
+    if(obj.x < 0) obj.x = 0;
+    if(obj.x + obj.w > 1920) obj.x = 1920 - obj.w;
 
-    if(peer && Object.keys(connections).length > 0) sendData({type:'teamUpdate', team:p.team, color:p.color, name:p.name});
-}
+    platforms.forEach(p => {
+        if(rectCollide(obj, p)) {
+            if(!p.solid && obj.vy < 0) return;
 
-function createRoom() {
-    if(connectionAttempt) return;
-    connectionAttempt = true;
-    FULL_RESET();
-    isHost = true;
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    roomId = Array(4).fill().map(()=>chars[Math.floor(Math.random()*26)]).join('');
-    localStorage.setItem('lastRoom', roomId);
+            const overlapX = Math.min(obj.x+obj.w, p.x+p.w) - Math.max(obj.x, p.x);
+            const overlapY = Math.min(obj.y+obj.h, p.y+p.h) - Math.max(obj.y, p.y);
 
-    peer = new Peer(roomId, {
-        debug: 1,
-        config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
-    });
-
-    peer.on('open', id => {
-        document.getElementById('lobbyRoomInfo').textContent = "ROOM CODE: " + roomId;
-        document.getElementById('connectionStatus').textContent = "✅ Room created! Share this code";
-        document.getElementById('startGameBtn').style.display = 'block';
-        gameMode = "multiplayer";
-        p.name = currentUsername;
-        showScreen('multiplayerLobby');
-        connectionAttempt = false;
-    });
-
-    peer.on('connection', conn => {
-        conn.on('open', () => {
-            connections[conn.connectionId] = conn;
-            document.getElementById('connectionStatus').textContent = "✅ Player joined!";
-            conn.send({ type: 'init', selfId: conn.connectionId, players: Object.values(otherPlayers), host: {x:p.x,y:p.y,health:p.health,angle:p.angle,team:p.team,color:p.color,name:p.name} });
-            const newName = "Player";
-            sendData({type:'playerJoin', id:conn.connectionId, player:{x:0,y:0,health:100,angle:0,team:'none',color:'#888',name:newName}});
-            showNotification(`✅ ${newName} joined!`, 'join');
-        });
-        conn.on('data', d => handleData(d, conn.connectionId));
-        conn.on('close', () => { 
-            const name = otherPlayers[conn.connectionId]?.name || "Player";
-            delete connections[conn.connectionId]; delete otherPlayers[conn.connectionId]; 
-            sendData({type:'playerLeave', id:conn.connectionId, name:name});
-            showNotification(`⚠️ ${name} left!`, 'leave');
-        });
-    });
-    peer.on('error', err => { document.getElementById('connectionStatus').textContent = "❌ Error: " + err.type; connectionAttempt = false; });
-}
-
-function joinRoom(silent = false) {
-    let code = roomId || document.getElementById('joinCodeInput').value.trim().toUpperCase();
-    if(!code || code.length !==4 || connectionAttempt) return;
-    connectionAttempt = true;
-    FULL_RESET();
-    isHost = false;
-    roomId = code;
-    localStorage.setItem('lastRoom', roomId);
-
-    peer = new Peer(undefined, {
-        debug: 1,
-        config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
-    });
-
-    peer.on('open', () => {
-        const conn = peer.connect(roomId, {reliable: true});
-        conn.on('open', () => {
-            connections[conn.connectionId] = conn;
-            gameMode = "multiplayer";
-            p.name = currentUsername;
-            if(!silent) {
-                document.getElementById('lobbyRoomInfo').textContent = "JOINED ROOM: " + roomId;
-                document.getElementById('connectionStatus').textContent = "✅ Connected!";
-                showNotification(`✅ ${p.name} joined!`, 'join');
-                showScreen('multiplayerLobby');
+            if(overlapX < overlapY) {
+                if(obj.x + obj.w/2 < p.x + p.w/2) obj.x -= overlapX;
+                else obj.x += overlapX;
+                obj.vx = 0;
+            } else {
+                if(obj.y + obj.h/2 < p.y + p.h/2) {
+                    obj.y -= overlapY;
+                    obj.onGround = true;
+                    obj.vy = 0;
+                } else {
+                    obj.y += overlapY;
+                    obj.vy = 0;
+                }
             }
-            connectionAttempt = false;
-        });
-        conn.on('data', d => handleData(d, conn.connectionId));
-        conn.on('error', err => { document.getElementById('connectionStatus').textContent = "❌ Failed: Invalid code"; connectionAttempt = false; });
+        }
     });
-}
 
-function startMultiplayerGame() {
-    running = true; isDead = false;
-    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-    document.getElementById('leaveBtn').style.display = 'block';
-    document.getElementById('codeText').textContent = roomId;
-    if(deviceType === 'pc') { document.body.style.cursor = 'none'; document.getElementById('crosshair').style.display = 'block'; }
-    sendData({type:'gameStart'});
-}
-
-function handleData(d, senderId) {
-    switch(d.type) {
-        case 'init': otherPlayers = {}; d.players.forEach(pl => otherPlayers[pl.id] = pl); otherPlayers['host'] = d.host; break;
-        case 'playerUpdate': if(!otherPlayers[senderId]) otherPlayers[senderId] = {}; Object.assign(otherPlayers[senderId], d.data); break;
-        case 'teamUpdate': if(!otherPlayers[senderId]) otherPlayers[senderId] = {}; Object.assign(otherPlayers[senderId], {team:d.team, color:d.color, name:d.name}); break;
-        case 'playerJoin': otherPlayers[d.id] = d.player; showNotification(`✅ ${d.player.name} joined!`, 'join'); break;
-        case 'playerLeave': showNotification(`⚠️ ${d.name || "Player"} left!`, 'leave'); delete otherPlayers[d.id]; break;
-        case 'bullet': bullets.push(d.bullet); break;
-        case 'gameStart': if(!running) startMultiplayerGame(); break;
+    if(obj.team && activePowerups[obj.team]) {
+        switch(activePowerups[obj.team]) {
+            case 'speed': obj.speed = 1.6; break;
+            case 'damage': obj.damageMult = 1.5; break;
+            case 'health': obj.maxHealth = 150; obj.health = 150; break;
+            case 'fire': obj.fireRate = 320; break;
+        }
     }
 }
 
-function sendData(data) { Object.values(connections).forEach(c => c.send(data)); }
+function shoot() {
+    if(Date.now() - player.lastShot < player.fireRate) return;
+    player.lastShot = Date.now();
+    const dmg = 25 * (player.damageMult || 1);
+    bullets.push({
+        x:player.x+player.w/2 + Math.cos(player.angle)*30, 
+        y:player.y+player.h/2 + Math.sin(player.angle)*30, 
+        w:22, h:22,
+        vx:Math.cos(player.angle)*player.bulletSpeed,
+        vy:Math.sin(player.angle)*player.bulletSpeed,
+        dmg:dmg, 
+        color:player.color,
+        glow:true
+    });
+}
 
+function updateEnemies() {
+    enemies.forEach(e => {
+        const dx = player.x - e.x;
+        const dy = player.y - e.y;
+        const dist = Math.hypot(dx, dy);
+        e.angle = Math.atan2(dy, dx);
+
+        e.jumpTimer--;
+        e.shotTimer--;
+
+        if(dist < e.minDistance) {
+            e.vx = dx < 0 ? e.speed * 1.4 : -e.speed * 1.4;
+        } 
+        else if(dist > e.maxDistance) {
+            e.vx = dx > 0 ? e.speed : -e.speed;
+        } 
+        else {
+            e.vx = e.speed * 0.9 * e.strafeDir;
+            if(Math.random() < 0.025) e.strafeDir *= -1;
+        }
+
+        if(e.shotTimer <= 0 && dist < e.maxDistance + 200) {
+            const spread = (1 - e.accuracy) * 0.6;
+            const aimAngle = e.angle + (Math.random() - 0.5) * spread;
+            enemyBullets.push({
+                x:e.x+e.w/2 + Math.cos(aimAngle)*25, 
+                y:e.y+e.h/2 + Math.sin(aimAngle)*25, 
+                w:20, h:20, 
+                vx:Math.cos(aimAngle)*16, 
+                vy:Math.sin(aimAngle)*16,
+                dmg:12, 
+                color:e.color, 
+                glow:true
+            });
+            e.shotTimer = e.fireRate;
+        }
+
+        if(e.onGround) {
+            if(dy < -70 || (Math.abs(dx) < 250 && dy < -30) || (e.jumpTimer < 0 && Math.random() < 0.035)) {
+                e.vy = e.jump;
+                e.jumpTimer = 100 + Math.random()*80;
+            }
+        }
+
+        if(e.health < 35) {
+            const coverDir = e.x < 960 ? 1 : -1;
+            e.vx = e.speed * coverDir * 1.2;
+            if(e.onGround && Math.random() < 0.05) e.vy = e.jump;
+        }
+
+        updatePhysics(e);
+    });
+}
+
+// --------------------------
+// INPUT ✅ PERFECT ALIGNMENT
+// --------------------------
+document.addEventListener("keydown",e=>keys[e.code]=true);
+document.addEventListener("keyup",e=>keys[e.code]=false);
+
+document.addEventListener("mousemove",e=>{
+    mouse.x = e.clientX;
+    mouse.y = e.clientY;
+
+    const ch = document.getElementById('crosshair');
+    ch.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
+
+    const rect = canvas.getBoundingClientRect();
+    mouse.canvasX = (e.clientX - rect.left) * (canvas.width / rect.width);
+    mouse.canvasY = (e.clientY - rect.top) * (canvas.height / rect.height);
+
+    player.angle = Math.atan2(
+        mouse.canvasY - (player.y + player.h/2), 
+        mouse.canvasX - (player.x + player.w/2)
+    );
+});
+
+document.addEventListener("mousedown",()=>{ if(running) mouse.down=true; });
+document.addEventListener("mouseup",()=>mouse.down=false);
+
+// --------------------------
+// GAME LOOP ✅ NO INFINITE LOOPS
+// --------------------------
 function startSolo() {
-    FULL_RESET();
-    gameMode = "solo";
-    resetBots();
-    p.team = "none"; p.color = "#0099ff"; p.name = currentUsername;
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    running = true; isDead = false;
-    document.getElementById('leaveBtn').style.display = 'block';
-    if(deviceType === 'pc') { document.body.style.cursor = 'none'; document.getElementById('crosshair').style.display = 'block'; }
+    running = false;
+    kills = 0;
+    bullets = [];
+    enemyBullets = [];
+    isDead = false;
+    hasWon = false;
+    player = {
+        x:300,y:900,w:60,h:100,
+        vx:0,vy:0,
+        speed:1.1, friction:0.94, jump:-11, gravity:0.48,
+        onGround:false, health:100, maxHealth:100,
+        angle:0, lastShot:0, fireRate:450, bulletSpeed:18,
+        color:"#0099ff", name:currentUser || "Player"
+    };
+    resetEnemies();
+
+    switchScreen(null);
+    document.getElementById('gameContainer').style.display = 'block';
+    document.getElementById('deathScreen').style.display = 'none';
+    document.getElementById('winScreen').style.display = 'none';
+    document.getElementById('matchEndText').classList.add('hidden');
+    document.getElementById('powerupChoice').classList.add('hidden');
+
+    running = true;
+    requestAnimationFrame(gameLoop);
 }
 
-function FULL_RESET() {
-    running = false; gameMode = ""; kills = 0; bullets = []; enemyBullets = []; isDead = false;
-    p.x=300;p.y=900;p.vx=0;p.vy=0;p.health=100;p.trail=[];p.name = currentUsername;
-    if(peer) peer.destroy(); peer = null; connections = {}; otherPlayers = {}; isHost = false; connectionAttempt = false;
-    document.getElementById('codeText').textContent = "---"; document.getElementById('startGameBtn').style.display = 'none';
-    document.getElementById('resetText').style.display = 'none'; document.getElementById('winText').style.display = 'none';
-    document.getElementById('leaveBtn').style.display = 'none'; document.getElementById('notification').style.display = 'none';
+function startMultiplayer() {
+    running = false;
+    kills = 0;
+    bullets = [];
+    enemyBullets = [];
+    isDead = false;
+    hasWon = false;
+    player = {
+        x:300,y:900,w:60,h:100,
+        vx:0,vy:0,
+        speed:1.1, friction:0.94, jump:-11, gravity:0.48,
+        onGround:false, health:100, maxHealth:100,
+        angle:0, lastShot:0, fireRate:450, bulletSpeed:18,
+        color:player.team==='red'?'#ff3333':'#3366ff', 
+        name:currentUser || "Player", team:player.team
+    };
+    enemies = [];
+
+    switchScreen(null);
+    document.getElementById('gameContainer').style.display = 'block';
+    document.getElementById('deathScreen').style.display = 'none';
+    document.getElementById('winScreen').style.display = 'none';
+    document.getElementById('matchEndText').classList.add('hidden');
+    document.getElementById('powerupChoice').classList.add('hidden');
+
+    broadcast({type:'startGame', roundLimit:roundLimit});
+    running = true;
+    requestAnimationFrame(gameLoop);
 }
 
-function leaveGame() { FULL_RESET(); localStorage.removeItem('lastRoom'); showScreen('homeScreen'); }
+function leaveGame() {
+    running = false;
+    document.getElementById('gameContainer').style.display = 'none';
+    document.getElementById('winScreen').style.display = 'none';
+    document.getElementById('powerupChoice').classList.add('hidden');
+    hasWon = false;
+    goHome();
+}
 
-// ✅ DEATH & RESPAWN WITH EFFECTS
+function updateUI() {
+    document.getElementById('uiHealth').textContent = Math.max(0, player.health);
+    document.getElementById('uiKills').textContent = kills;
+    document.getElementById('redScore').textContent = redScore;
+    document.getElementById('blueScore').textContent = blueScore;
+}
+
 function checkDeath() {
-    if(p.health <= 0 && !isDead) {
-        isDead = true; p.health = 0;
-        showNotification("💀 YOU DIED!", 'leave');
-        document.getElementById('resetText').style.display = 'block';
-        if(gameMode === 'solo') setTimeout(()=>startSolo(), 2500);
-        else setTimeout(()=>{
-            isDead=false; p.health=p.maxHealth; p.x=300; p.y=900; p.trail=[];
-            document.getElementById('resetText').style.display='none';
-            sendData({type:'playerUpdate', data:{x:p.x,y:p.y,health:p.health,angle:p.angle}});
-            showNotification("✨ RESPAWNED!", 'join');
-        },3000);
+    if(player.health <= 0 && !isDead) {
+        isDead = true;
+        running = false;
+        document.getElementById('deathScreen').style.display = 'block';
+        setTimeout(()=>{
+            player.health = player.maxHealth;
+            isDead = false;
+            document.getElementById('deathScreen').style.display = 'none';
+            running = true;
+        }, 2000);
     }
 }
 
 function checkWin() {
-    if(gameMode === 'solo' && bots.length === 0 && running) {
-        running = false; showNotification("🏆 MISSION COMPLETE!", 'join');
-        document.getElementById('winText').style.display = 'block';
-    }
-}
+    // ✅ FIXED: Only win if: solo + no enemies, OR multiplayer + enemy team eliminated
+    if (!hasWon && running && (
+        (enemies.length === 0 && Object.keys(players).length === 0) || 
+        (Object.keys(players).length > 0 && !players[player.team === 'red' ? 'blue' : 'red'])
+    )) {
+        hasWon = true; // ✅ Mark as won so it never repeats
+        running = false;
+        
+        const winnerName = currentUser.toUpperCase();
+        document.getElementById('winnerText').textContent = winnerName;
 
-// ✅ INPUTS
-document.addEventListener("keydown",e=>keys[e.code]=true);
-document.addEventListener("keyup",e=>keys[e.code]=false);
-document.addEventListener("mousemove",e=>{
-    const r=canvas.getBoundingClientRect();
-    const scaleX = canvas.width / r.width;
-    const scaleY = canvas.height / r.height;
-    mouse.x=(e.clientX - r.left) * scaleX; 
-    mouse.y=(e.clientY - r.top) * scaleY;
-    const ch = document.getElementById('crosshair');
-    ch.style.left = e.clientX + 'px'; ch.style.top = e.clientY + 'px';
-    if(!isDead && running){
-        const dx = mouse.x - (p.x+p.w/2); const dy = mouse.y - (p.y+p.h/2);
-        p.angle = Math.atan2(dy, dx);
-    }
-});
-document.addEventListener("mousedown",e=>{if(e.button===0)mouse.down=true;});
-document.addEventListener("mouseup",e=>{if(e.button===0)mouse.down=false;});
+        const winner = player.team || 'solo';
+        if(winner === 'red') redScore++;
+        if(winner === 'blue') blueScore++;
 
-// ✅ MOBILE CONTROLS
-let moveData = {active:false, startX:0, startY:0, dx:0, dy:0};
-let attackData = {active:false, startX:0, startY:0, dx:0, dy:0};
-const maxRange = 60;
-
-const moveBase = document.querySelector('#touchControls .joystick-base:first-child');
-const moveKnob = document.querySelector('#touchControls .joystick-knob:first-child');
-const attackBase = document.querySelector('#touchControls .joystick-base:last-child');
-const attackKnob = document.querySelector('#touchControls .joystick-knob:last-child');
-
-moveBase.addEventListener('touchstart',e=>{
-    e.preventDefault(); const t=e.touches[0]; const r=moveBase.getBoundingClientRect();
-    moveData.active=true; moveData.startX = r.left + r.width/2; moveData.startY = r.top + r.height/2;
-    moveData.dx = 0; moveData.dy = 0; moveKnob.style.transform = `translate(-50%, -50%)`;
-});
-document.addEventListener('touchmove',e=>{
-    if(!moveData.active) return; e.preventDefault(); const t=e.touches[0];
-    moveData.dx = t.clientX - moveData.startX; moveData.dy = t.clientY - moveData.startY;
-    const dist = Math.hypot(moveData.dx, moveData.dy);
-    if(dist > maxRange) { const scale = maxRange/dist; moveData.dx *= scale; moveData.dy *= scale; }
-    moveKnob.style.transform = `translate(calc(-50% + ${moveData.dx}px), calc(-50% + ${moveData.dy}px))`;
-});
-document.addEventListener('touchend',e=>{
-    if(!moveData.active) return; moveData.active=false; moveData.dx=0; moveData.dy=0;
-    moveKnob.style.transform = `translate(-50%, -50%)`;
-});
-
-attackBase.addEventListener('touchstart',e=>{
-    e.preventDefault(); const t=e.touches[0]; const r=attackBase.getBoundingClientRect();
-    attackData.active=true; attackData.startX = r.left + r.width/2; attackData.startY = r.top + r.height/2;
-    attackData.dx = 0; attackData.dy = 0; attackKnob.style.transform = `translate(-50%, -50%)`;
-});
-document.addEventListener('touchmove',e=>{
-    if(!attackData.active || isDead || !running) return; e.preventDefault(); const t=e.touches[0];
-    attackData.dx = t.clientX - attackData.startX; attackData.dy = t.clientY - attackData.dy;
-    const dist = Math.hypot(attackData.dx, attackData.dy);
-    if(dist > maxRange) { const scale = maxRange/dist; attackData.dx *= scale; attackData.dy *= scale; }
-    attackKnob.style.transform = `translate(calc(-50% + ${attackData.dx}px), calc(-50% + ${attackData.dy}px))`;
-    if(dist > 8) {
-        p.angle = Math.atan2(attackData.dy, attackData.dx);
-        const cx = (p.x+p.w/2) + Math.cos(p.angle)*400; const cy = (p.y+p.h/2) + Math.sin(p.angle)*400;
-        const rect = canvas.getBoundingClientRect(); const scaleX = rect.width / canvas.width; const scaleY = rect.height / canvas.height;
-        const ch = document.getElementById('crosshair');
-        ch.style.left = (rect.left + cx * scaleX) + 'px'; ch.style.top = (rect.top + cy * scaleY) + 'px';
-    }
-});
-document.addEventListener('touchend',e=>{
-    if(!attackData.active) return; e.preventDefault(); attackData.active=false;
-    attackKnob.style.transform = `translate(-50%, -50%)`;
-    if(Math.hypot(attackData.dx, attackData.dy) > 15 && !isDead && running) shoot();
-    attackData.dx=0; attackData.dy=0;
-});
-
-function collide(a,b){return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;}
-
-function checkPlatformCollision(obj, pl) {
-    if(pl.isGround) return collide(obj, pl);
-    let wantFall = keys['KeyS'] || keys['ArrowDown'] || (deviceType==='mobile' && moveData.dy > 20);
-    if(obj.onGround && wantFall) return false;
-    if (!pl.solid) {
-        if (obj.vy >= 0 && obj.y + obj.h <= pl.y + 20 && obj.y + obj.h + obj.vy >= pl.y && obj.x + obj.w > pl.x && obj.x < pl.x + pl.w) return true;
-        return false;
-    }
-    return collide(obj, pl);
-}
-
-function hasLineOfSight(a,b){
-    let clear=true;
-    platforms.forEach(pl=>{if(pl.solid && ((a.x<pl.x&&b.x>pl.x)||(a.x>pl.x&&b.x<pl.x))&&((a.y<pl.y&&b.y>pl.y)||(a.y>pl.y&&b.y<pl.y)))clear=false;});
-    return clear;
-}
-
-// ✅ SHOOT WITH TRAIL & EFFECT
-function shoot() {
-    const now = Date.now();
-    if(now - p.lastShot < p.fireRate) return;
-    p.lastShot = now;
-    const b = {
-        x:p.x+p.w/2, y:p.y+p.h/2, w:14, h:14,
-        vx:Math.cos(p.angle)*p.bulletSpeed, vy:Math.sin(p.angle)*p.bulletSpeed,
-        dmg:25, color:p.color, team:p.team, trail:[]
-    };
-    bullets.push(b);
-    if(gameMode==="multiplayer") sendData({type:'bullet', bullet:b});
-}
-
-// UPDATE
-function update(){
-    if(!running)return;
-
-    if(!isDead){
-        let moveX=0;
-        if(deviceType==='pc'){
-            if(keys['KeyA'])moveX-=1;
-            if(keys['KeyD'])moveX+=1;
-            if(keys['KeyW']&&p.onGround){p.vy=p.jump;p.onGround=false;}
-            if(mouse.down) shoot();
-        }else{
-            if(Math.abs(moveData.dx)>5) moveX = moveData.dx/maxRange;
-            if(moveData.dy < -25 && p.onGround){p.vy=p.jump;p.onGround=false;}
+        confetti({particleCount:350, spread:90, origin:{y:0.6}, colors:[player.color, '#ffffff', '#FFCC00']});
+        
+        if(redScore >= roundLimit || blueScore >= roundLimit) {
+            document.getElementById('matchEndText').textContent = "🏆 MATCH WINNER: " + (redScore > blueScore ? "RED TEAM" : "BLUE TEAM");
+            document.getElementById('matchEndText').classList.remove('hidden');
+            document.querySelector('#winScreen button[onclick="nextRound()"]').style.display = 'none';
+        } else {
+            document.getElementById('powerupChoice').classList.remove('hidden');
+            document.querySelector('#winScreen button[onclick="nextRound()"]').style.display = 'block';
         }
-        p.vx += moveX * p.speed;
-        // ✅ Add trail
-        p.trail.unshift({x:p.x+p.w/2, y:p.y+p.h/2, alpha:1});
-        if(p.trail.length > 10) p.trail.pop();
+
+        document.getElementById('winScreen').style.display = 'block';
     }
+}
 
-    p.vx *= p.friction; p.vy += p.gravity;
-    p.x += p.vx; p.y += p.vy;
-    if(p.x<0)p.x=0; if(p.x+p.w>canvas.width)p.x=canvas.width-p.w;
+function nextRound() {
+    bullets = [];
+    enemyBullets = [];
+    isDead = false;
+    hasWon = false; // ✅ Reset win state
+    player.health = player.maxHealth;
+    resetEnemies();
+    document.getElementById('winScreen').style.display = 'none';
+    document.getElementById('powerupChoice').classList.add('hidden');
+    running = true;
+}
 
-    p.onGround=false;
-    platforms.forEach(pl=>{
-        if(checkPlatformCollision(p, pl)){
-            if(p.vy >= 0) { p.y = pl.y - p.h; p.vy = 0; p.onGround = true; }
-            if(pl.solid) {
-                if(p.x+p.w - p.vx <= pl.x){p.x=pl.x-p.w;p.vx=0;}
-                if(p.x - p.vx >= pl.x+pl.w){p.x=pl.x+pl.w;p.vx=0;}
-            }
-        }
+function update() {
+    if(!running || isDead) return;
+
+    if(keys['KeyW'] || keys['ArrowUp']) { if(player.onGround) player.vy = player.jump; }
+    if(keys['KeyA'] || keys['ArrowLeft']) player.vx -= player.speed;
+    if(keys['KeyD'] || keys['ArrowRight']) player.vx += player.speed;
+    if(mouse.down) shoot();
+
+    updatePhysics(player);
+
+    bullets.forEach((b,i)=>{ b.x+=b.vx; b.y+=b.vy; if(b.x<0||b.x>1920||b.y<0||b.y>1080) bullets.splice(i,1); });
+    enemyBullets.forEach((b,i)=>{ 
+        b.x+=b.vx; b.y+=b.vy; 
+        if(b.x<0||b.x>1920||b.y<0||b.y>1080) enemyBullets.splice(i,1);
+        if(rectCollide(b, player)) { player.health -= b.dmg; enemyBullets.splice(i,1); updateUI(); }
     });
-    if(p.y>canvas.height){p.y=canvas.height-p.h;p.vy=0;p.onGround=true;}
 
-    if(gameMode==="solo"){
-        bots.forEach(b=>{
-            const distX=p.x-b.x; const distY=p.y-b.y; const dist=Math.hypot(distX,distY);
-            b.angle=Math.atan2(p.y-(b.y+b.h/2),p.x-(b.x+b.w/2)); b.lineOfSight=hasLineOfSight(b,p);
-            let danger=false;
-            bullets.forEach(bl=>{if(Math.hypot(bl.x-b.x,bl.y-b.y)<320&&Date.now()-b.lastDodge>800){danger=true;b.lastDodge=Date.now();}});
-            if(danger){b.state="dodge";}
-            else if(b.health<30){ if(dist<600)b.state="retreat_smart"; else if(dist>1000)b.state="advance_flank"; else b.state="attack_careful"; }
-            else if(dist<b.attackRange&&b.lineOfSight)b.state="attack";
-            else if(dist<b.detectRange)b.state="advance";
-            else b.state="patrol";
+    if(enemies.length > 0) updateEnemies();
 
-            if(b.state==="patrol"){if(b.x<100||b.x+b.w>canvas.width-100)b.dir*=-1;b.speed=b.baseSpeed*0.9;}
-            else if(b.state==="advance"){if(Date.now()-b.lastMoveChange>2000){b.flankSide*=-1;b.lastMoveChange=Date.now();}b.dir=(distX+b.flankSide*220)>0?1:-1;b.speed=b.baseSpeed*1.4;if(b.onGround&&distY<-120&&Math.abs(distX)<320&&Math.random()>0.75){b.vy=-22;b.onGround=false;}}
-            else if(b.state==="attack"){if(!b.lineOfSight){b.dir=distX>0?1:-1;b.speed=b.baseSpeed*1.1;}else{if(Math.random()<0.01)b.dir*=-1;b.speed=b.baseSpeed*0.7;if(dist<360)b.dir*=-1;}}
-            else if(b.state==="retreat_smart"){b.dir=distX>0?-1:1;b.speed=b.baseSpeed*2.2;if(b.onGround&&Math.random()>0.6)b.vy=-18;}
-            else if(b.state==="advance_flank"){b.flankSide=distX>0?-1:1;b.dir=b.flankSide;b.speed=b.baseSpeed*1.8;}
-            else if(b.state==="attack_careful"){b.speed=b.baseSpeed*0.4;b.dir=Math.random()>0.7?1:-1;}
-            else if(b.state==="dodge"){b.speed=b.baseSpeed*2.5;}
+    bullets.forEach((b,bi)=>{
+        enemies.forEach((e,ei)=>{
+            if(rectCollide(b,e)) {
+                e.health -= b.dmg;
+                bullets.splice(bi,1);
+                if(e.health <= 0) { enemies.splice(ei,1); kills++; updateUI(); }
+            }
+        });
+    });
 
-            b.x += b.speed * b.dir; if(b.x<80){b.x=80;b.dir*=-1;} if(b.x+b.w>canvas.width-80){b.x=canvas.width-80-b.w;b.dir*=-1;}
-            b.vy+=0.85;b.y+=b.vy;b.onGround=false;
-            platforms.forEach(pl=>{if(checkPlatformCollision(b,pl)){if(b.vy>=0){b.y=pl.y-b.h;b.vy=0;b.onGround=true
+    checkDeath();
+    checkWin();
+    updateUI();
+}
+
+function render() {
+    ctx.clearRect(0,0,1920,1080);
+
+    platforms.forEach(p=>{ ctx.fillStyle = p.color; ctx.fillRect(p.x,p.y,p.w,p.h); });
+
+    ctx.fillStyle = player.color;
+    ctx.fillRect(player.x, player.y, player.w, player.h);
+    
+    ctx.save();
+    ctx.translate(player.x + player.w/2, player.y + player.h/2);
+    ctx.rotate(player.angle);
+    ctx.fillStyle = '#222'; ctx.fillRect(20, -7, 40, 14);
+    ctx.fillStyle = '#444'; ctx.fillRect(23, -5, 34, 10);
+    ctx.restore();
+
+    ctx.fillStyle = '#000'; ctx.font = 'bold 15px Arial'; ctx.textAlign = 'center';
+    ctx.fillText(player.name, player.x + player.w/2, player.y - 20);
+    ctx.fillStyle = '#333'; ctx.fillRect(player.x, player.y-12, player.w, 4);
+    ctx.fillStyle = '#2ecc71'; ctx.fillRect(player.x, player.y-12, player.w * (player.health/player.maxHealth), 4);
+
+    enemies.forEach(e=>{
+        ctx.fillStyle = e.color;
+        ctx.fillRect(e.x, e.y, e.w, e.h);
+        
+        ctx.save();
+        ctx.translate(e.x + e.w/2, e.y + e.h/2);
+        ctx.rotate(e.angle);
+        ctx.fillStyle = '#222'; ctx.fillRect(20, -7, 35, 14);
+        ctx.restore();
+
+        ctx.fillStyle = '#000'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center';
+        ctx.fillText(e.name, e.x + e.w/2, e.y - 18);
+        ctx.fillStyle = '#333'; ctx.fillRect(e.x, e.y-12, e.w, 4);
+        ctx.fillStyle = '#e74c3c'; ctx.fillRect(e.x, e.y-12, e.w * (e.health/e.maxHealth), 4);
+    });
+
+    Object.values(players).forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.fillRect(p.x, p.y, p.w, p.h);
+        
+        ctx.save();
+        ctx.translate(p.x + p.w/2, p.y + p.h/2);
+        ctx.rotate(p.angle);
+        ctx.fillStyle = '#222'; ctx.fillRect(20, -7, 40, 14);
+        ctx.restore();
+
+        ctx.fillStyle = '#000'; ctx.font = 'bold 15px Arial'; ctx.textAlign = 'center';
+        ctx.fillText(p.name, p.x + p.w/2, p.y - 20);
+        ctx.fillStyle = '#333'; ctx.fillRect(p.x, p.y-12, p.w, 4);
+        ctx.fillStyle = p.team === 'red' ? '#e74c3c' : '#3498db'; ctx.fillRect(p.x, p.y-12, p.w * (p.health/p.maxHealth), 4);
+    });
+
+    bullets.forEach(b=>{ 
+        ctx.shadowColor = b.color;
+        ctx.shadowBlur = 22;
+        ctx.fillStyle = b.color; 
+        ctx.beginPath(); ctx.arc(b.x,b.y,b.w/2,0,Math.PI*2); ctx.fill(); 
+        ctx.shadowBlur = 0;
+    });
+    enemyBullets.forEach(b=>{ 
+        ctx.shadowColor = b.color;
+        ctx.shadowBlur = 22;
+        ctx.fillStyle = b.color; 
+        ctx.beginPath(); ctx.arc(b.x,b.y,b.w/2,0,Math.PI*2); ctx.fill(); 
+        ctx.shadowBlur = 0;
+    });
+}
+
+function gameLoop() {
+    update();
+    render();
+    requestAnimationFrame(gameLoop);
+}
+
+// --------------------------
+// MULTIPLAYER
+// --------------------------
+function createRoom() {
+    isHost = true;
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    roomId = Array(4).fill().map(()=>chars[Math.floor(Math.random()*26)]).join('');
+    peer = new Peer(roomId, {config:{iceServers:[{urls:'stun:stun.l.google.com:19302'}]}});
+    peer.on('open', ()=>{
+        document.getElementById('roomInfo').textContent = "ROOM: " + roomId;
+        document.getElementById('status').textContent = "✅ Room Created";
+        document.getElementById('startGameBtn').style.display = 'block';
+    });
+    peer.on('connection', conn=>{
+        conn.on('open', ()=>{ 
+            connections[conn.connectionId]=conn; 
+            conn.send({type:'init', user:currentUser, team:player.team, roundLimit:roundLimit});
+        });
+        conn.on('data', data=>handleData(data, conn));
+    });
+}
+
+function joinRoom() {
+    const code = document.getElementById('joinCode').value.trim().toUpperCase();
+    if(code.length!==4) return;
+    roomId = code;
+    peer = new Peer();
+    peer.on('open', ()=>{
+        const conn = peer.connect(roomId);
+        conn.on('open', ()=>{ 
+            connections[conn.connectionId]=conn; 
+            document.getElementById('status').textContent = "✅ Connected";
+        });
+        conn.on('data', data=>handleData(data, conn));
+    });
+}
+
+function handleData(data, conn) {
+    if(data.type === 'init') {
+        players[conn.connectionId] = {name:data.user, team:data.team, color:data.team==='red'?'#ff3333':'#3366ff', x:300, y:900, w:60, h:100, health:100, maxHealth:100, angle:0};
+    }
+    if(data.type === 'startGame') {
+        roundLimit = data.roundLimit;
+        startMultiplayer();
+    }
+    if(data.type === 'powerup') {
+        activePowerups[data.team] = data.power;
+    }
+    if(data.type === 'playerUpdate') {
+        if(players[conn.connectionId]) Object.assign(players[conn.connectionId], data.state);
+    }
+}
+
+function broadcast(data) {
+    Object.values(connections).forEach(c=>c.send(data));
+}
+
+function selectTeam(team) {
+    player.team = team;
+    player.color = team==='red'?'#ff3333':team==='blue'?'#3366ff':'#0099ff';
+    document.querySelectorAll('.team-btn').forEach(b=>b.classList.remove('bg-white/20'));
+    event.target.classList.add('bg-white/20');
+}
+
+setInterval(()=>{
+    if(running && Object.keys(connections).length>0) {
+        broadcast({type:'playerUpdate', state:{x:player.x, y:player.y, angle:player.angle, health:player.health}});
+    }
+}, 50);
+</script>
+</body>
+</html>
